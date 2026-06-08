@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+venv/
+env/
+.venv/
+
+# Compiled files & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.eslintcache
+
+# Build outputs
+build/
+dist/
+out/
+backend/temp_uploads/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Application specific
+temp_audio/
+backend/temp_audio/
+backend/orma.db
+*.sqlite3
+*.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
