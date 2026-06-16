@@ -1,8 +1,13 @@
 <div align="center">
-  <img src="https://via.placeholder.com/150x150?text=Orma+AI" width="120" alt="Orma AI Logo" />
-  
-  <h1>Orma AI — AI Memory Assistant for Elderly Care</h1>
-  
+  <img src="screenshots/banner.png" alt="Orma AI Banner" width="100%" />
+
+  <br />
+  <br />
+
+  <img src="screenshots/logo.png" alt="Orma AI Logo" width="120" />
+
+  <h1>Orma AI — Memory Assistant for Elderly Care</h1>
+
   <p><b>A compassionate, real-time voice AI assistant designed specifically for elderly healthcare, memory tracking, and family monitoring.</b></p>
 
   [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -14,20 +19,26 @@
 
 <br/>
 
-## 1. Project Overview
-**Orma AI** bridges the gap between complex digital interfaces and elderly accessibility by providing a completely **voice-first** experience. Built for seniors who struggle with screens, Orma AI passively listens, extracts important healthcare routines (like medicine schedules and appointments), and gently alerts them when action is needed. It operates as a continuous, empathetic companion that keeps families informed and elderly users safe.
+## 📖 Project Overview
 
-## 2. Features
+**Orma AI** bridges the gap between complex digital interfaces and elderly accessibility by providing a completely **voice-first** experience. Built for seniors who struggle with screens, Orma AI passively listens, extracts important healthcare routines (like medicine schedules and appointments), and gently alerts them when action is needed. It operates as a continuous, empathetic companion that keeps families informed and elderly users safe. 
+
+Designed to feel like a companion rather than a tool, Orma AI leverages state-of-the-art Natural Language Processing to make elderly care more humane and responsive.
+
+## ✨ Key Features
+
 - 🎙️ **Voice-First Interaction:** 100% hands-free conversational AI.
 - 🧠 **Persistent Memory System:** Automatically learns routines, appointments, and medicine schedules from casual conversation.
-- 🌍 **Native Multilingual Support:** Flawless English and highly contextual, casual Kerala Malayalam support.
-- ⏰ **Real-Time Medicine Alerts:** Background chron-jobs ensure medicine is taken on time.
+- 🌍 **Native Multilingual Support:** Flawless English and highly contextual, casual regional languages (e.g., Kerala Malayalam) support.
+- ⏰ **Real-Time Medicine Alerts:** Background cron-jobs ensure medicine is taken exactly on time.
 - 🚑 **Emergency Detection System:** Real-time semantic monitoring for physical distress (e.g., "I fell down", "chest pain").
-- 🎨 **Accessibility-First UI:** Massive touch targets, high contrast, and smooth micro-animations.
+- 🎨 **Accessibility-First UI:** Massive touch targets, high contrast, and smooth micro-animations tailored for visually impaired users.
 
 ---
 
-## 3. AI Architecture
+## 🏗️ AI Architecture & Project Workflow
+
+The core of Orma AI is its voice pipeline. User audio is captured via a custom React component, encoded, and sent to the FastAPI backend. There, **OpenAI's Whisper** handles high-fidelity transcription. The resulting text is routed through an intent-analyzer before hitting the **Ollama (Llama 3)** generation engine, ensuring responses are highly concise, strictly factual, and empathetic.
 
 ```mermaid
 graph TD;
@@ -52,51 +63,57 @@ graph TD;
 
 ---
 
-## 4. Tech Stack
+## 💻 Tech Stack & AI Project Branding
 
-### Frontend Client
-- **Framework:** React (Vite)
-- **Styling:** Tailwind CSS, Framer Motion
-- **Voice Capabilities:** `react-media-recorder`, Browser SpeechSynthesis API
-- **State Management:** Custom React Hooks
+This repository is built as a production-ready AI application with a robust separation of concerns. 
 
-### Backend Engine
+### 🐍 Python Backend (FastAPI Engine)
 - **Framework:** Python FastAPI (Uvicorn)
-- **Database:** SQLite + SQLAlchemy ORM
-- **Task Scheduling:** APScheduler
-- **AI Models:** OpenAI Whisper (`medium`), Ollama (Llama 3)
+- **Task Scheduling:** APScheduler for persistent chron-jobs
+- **Architecture:** Modular routes for wellness tracking, notifications, and AI generation
+
+### ⚛️ React Frontend (Vite)
+- **Framework:** React 18 (Vite)
+- **Styling:** Tailwind CSS, Framer Motion
+- **Capabilities:** `react-media-recorder`, Browser SpeechSynthesis API, WebSockets for real-time updates
+
+### 🤖 AI/ML Components & APIs
+- **Transcription:** OpenAI Whisper API (`medium` model) for real-time low-latency speech-to-text.
+- **LLM Inference:** Local Ollama integration running `Llama-3` for privacy-first, on-device contextual generation.
+- **Intent Recognition:** Custom prompt engineering and semantic classification for emergency detection.
+
+### 💾 Database
+- **Primary Datastore:** SQLite + SQLAlchemy ORM (optimized for local edge-deployments).
+
+### 🚀 Deployment Information
+- **Dockerization:** Ready for containerized deployment.
+- **Edge Deployment Target:** Designed to run on lightweight hardware (like a Raspberry Pi 4) for local, screen-less bedside smart speaker functionality.
 
 ---
 
-## 5. Screenshots Section
-
-*(Replace placeholders with actual UI screenshots before launch)*
+## 🖼️ Screenshots
 
 | Dashboard Overview | Real-Time Medicine Alerts | Emergency Detection Active |
 |:---:|:---:|:---:|
-| <img src="https://via.placeholder.com/300x200?text=Dashboard+UI" alt="Dashboard" /> | <img src="https://via.placeholder.com/300x200?text=Medicine+Popup" alt="Medicine Alerts" /> | <img src="https://via.placeholder.com/300x200?text=Emergency+UI" alt="Emergency State" /> |
+| <img src="screenshots/dashboard.png" alt="Dashboard" width="300"/> | <img src="screenshots/medicine.png" alt="Medicine Alerts" width="300"/> | <img src="screenshots/emergency.png" alt="Emergency State" width="300"/> |
 
 ---
 
-## 6. Installation Guide
+## 🚀 Installation Guide
 
 ### Prerequisites
 - **Python 3.10+**
 - **Node.js 18+**
 - **Ollama:** Installed and running locally with the `llama3` model.
 
-Clone the repository:
+### 1. Clone the repository
 ```bash
 git clone https://github.com/yourusername/orma-ai.git
 cd orma-ai
 ```
 
----
-
-## 7. Running Backend
-
+### 2. Setup Backend Engine
 The backend powers the AI logic, memory extraction, and medicine scheduling.
-
 ```bash
 cd backend
 python -m venv venv
@@ -107,17 +124,16 @@ venv\Scripts\activate
 # Mac/Linux:
 source venv/bin/activate
 
+# Install dependencies
 pip install -r requirements.txt
+
+# Run the API
 uvicorn main:app --reload
 ```
 *API will run at `http://localhost:8000`*
 
----
-
-## 8. Running Frontend
-
+### 3. Setup Frontend Client
 The frontend provides the accessible, voice-first UI.
-
 ```bash
 cd frontend
 npm install
@@ -127,27 +143,49 @@ npm run dev
 
 ---
 
-## 9. Voice AI Pipeline
-The core of Orma AI is its voice pipeline. User audio is captured via a custom `VoiceRecorder` component, encoded, and sent to the FastAPI backend. There, **OpenAI's Whisper (`medium`)** handles high-fidelity transcription. The resulting text is routed through an intent-analyzer before hitting the **Ollama (Llama 3)** generation engine, ensuring responses are highly concise, strictly factual, and empathetic.
+## ⚙️ Usage Guide
 
-## 10. Medicine Memory System
-Unlike standard chatbots, Orma possesses persistent episodic memory. Built heavily on **SQLAlchemy**, the AI passively scans conversations. If an elderly user mentions an appointment or medicine, the rule-based extraction engine silently stores it. A background **APScheduler** runs every 15 seconds, polling the SQLite database and pushing real-time, screen-overriding popups to the frontend when a dose is due.
-
-## 11. Malayalam Support
-Recognizing that elderly users often prefer their mother tongue, Orma features deep regional support. By bypassing generic translation layers, the system explicitly forces Whisper into Malayalam (`ml`) mode when toggled. The AI system prompt is heavily strictly engineered to reply in **casual, conversational Kerala Malayalam**—avoiding robotic, dictionary-style translations that confuse seniors. 
-
-## 12. Emergency Detection
-Safety is paramount. The backend runs an aggressive semantic check on all transcribed audio *before* generating an AI response. If distress keywords ("fell down", "chest pain", "can't breathe") are detected, the standard AI loop is suspended. The frontend instantly shifts into an **Emergency State** (pulsing red UI, severe audio alerts), preparing the pipeline for future automated SMS dispatch to family members.
+1. **Launch Both Servers:** Ensure both FastAPI backend and React frontend are running.
+2. **Interact:** Open the web app on a tablet or desktop. Press the large microphone button and speak a command (e.g., *"I have to take my blood pressure medicine every day at 8 AM"*).
+3. **Memory Extraction:** Watch the backend terminal—it will extract the routine and save it to the local SQLite database.
+4. **Trigger Alerts:** When the scheduled time hits, a loud, high-contrast modal will override the screen to alert the user.
+5. **Emergency Simulation:** Try saying *"I have chest pain"*. The system will immediately bypass normal conversation, flag the emergency, and pulse a red distress UI.
 
 ---
 
-## 13. Future Roadmap
+## 🛣️ Future Enhancements
 
 - [ ] **Vector Database Integration:** Migrate from SQLite rule-based extraction to ChromaDB for infinite, semantic vector-based memory retrieval.
 - [ ] **Family Monitoring Web Portal:** Launch a remote dashboard allowing children to monitor their parent's medicine adherence and vital check-ins.
 - [ ] **SMS Integration:** Connect Twilio to the Emergency Detection pipeline to automatically text family members if a crisis is detected.
-- [ ] **IoT Hardware Build:** Port the React frontend to a Raspberry Pi Zero setup, creating a standalone, screen-less bedside smart speaker.
-- [ ] **Advanced Voice Cloning:** Replace the browser's Web Speech API with Piper TTS / Coqui TTS for hyper-realistic, emotionally-resonant voice models.
+- [ ] **IoT Hardware Build:** Port the React frontend to a Raspberry Pi setup, creating a standalone smart speaker.
+- [ ] **Advanced Voice Cloning:** Replace the browser's Web Speech API with Piper TTS / Coqui TTS for emotionally-resonant voice models.
+
+---
+
+## 🤝 Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+## 📬 Contact
+
+**Your Name** - [LinkedIn](https://linkedin.com/in/yourprofile) - email@example.com
+
+Project Link: [https://github.com/yourusername/orma-ai](https://github.com/yourusername/orma-ai)
 
 <div align="center">
   <br/>
