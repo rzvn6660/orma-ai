@@ -108,7 +108,7 @@ This repository is built as a production-ready AI application with a robust sepa
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/orma-ai.git
+git clone https://github.com/rzvn6660/orma-ai.git
 cd orma-ai
 ```
 
@@ -183,9 +183,9 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📬 Contact
 
-**Your Name** - [LinkedIn](https://linkedin.com/in/yourprofile) - email@example.com
+**Mohammed Rizvin MK** - [LinkedIn](https://www.linkedin.com/in/mohammed-rizvin-mk) - rizvinmk@gmail.com
 
-Project Link: [https://github.com/yourusername/orma-ai](https://github.com/yourusername/orma-ai)
+Project Link: [https://github.com/rzvn6660/orma-ai](https://github.com/rzvn6660/orma-ai)
 
 <div align="center">
   <br/>
