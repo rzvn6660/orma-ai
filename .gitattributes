@@ -1,0 +1,5 @@
+# Configure GitHub Linguist to hide the frontend codebase from language stats
+# This ensures the Python AI Backend is prominently featured as the primary language.
+frontend/** linguist-vendored
+dist/** linguist-vendored
+node_modules/** linguist-vendored
