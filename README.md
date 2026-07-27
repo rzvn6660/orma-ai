@@ -6,7 +6,7 @@
 
   <img src="screenshots/logo.png" alt="Orma AI Logo" width="120" />
 
-  <h1>Orma AI — Memory Assistant for Elderly Care</h1>
+  <h1>Orma AI – Memory Assistant for Elderly Care</h1>
 
   <p><b>A compassionate, real-time voice AI assistant designed specifically for elderly healthcare, memory tracking, and family monitoring.</b></p>
 
