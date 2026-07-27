@@ -31,7 +31,7 @@ Designed to feel like a companion rather than a tool, Orma AI leverages state-of
 - 🧠 **Persistent Memory System:** Automatically learns routines, appointments, and medicine schedules from casual conversation.
 - 🌍 **Native Multilingual Support:** Flawless English and highly contextual, casual regional languages (e.g., Kerala Malayalam) support.
 - ⏰ **Real-Time Medicine Alerts:** Background cron-jobs ensure medicine is taken exactly on time.
-- 🚑 **Emergency Detection System:** Real-time semantic monitoring for physical distress (e.g., "I fell down", "chest pain").
+
 - 🎨 **Accessibility-First UI:** Massive touch targets, high contrast, and smooth micro-animations tailored for visually impaired users.
 
 ---
@@ -80,7 +80,7 @@ This repository is built as a production-ready AI application with a robust sepa
 ### 🤖 AI/ML Components & APIs
 - **Transcription:** OpenAI Whisper API (`medium` model) for real-time low-latency speech-to-text.
 - **LLM Inference:** Local Ollama integration running `Llama-3` for privacy-first, on-device contextual generation.
-- **Intent Recognition:** Custom prompt engineering and semantic classification for emergency detection.
+- **Intent Recognition:** Custom prompt engineering for conversational context routing.
 
 ### 💾 Database
 - **Primary Datastore:** SQLite + SQLAlchemy ORM (optimized for local edge-deployments).
@@ -93,7 +93,7 @@ This repository is built as a production-ready AI application with a robust sepa
 
 ## 🖼️ Screenshots
 
-| Dashboard Overview | Real-Time Medicine Alerts | Emergency Detection Active |
+| Caregiver Dashboard (UI Preview) | Real-Time Medicine Alerts | Voice Interaction |
 |:---:|:---:|:---:|
 | <img src="screenshots/dashboard.png" alt="Dashboard" width="300"/> | <img src="screenshots/medicine.png" alt="Medicine Alerts" width="300"/> | <img src="screenshots/emergency.png" alt="Emergency State" width="300"/> |
 
@@ -141,6 +141,24 @@ npm run dev
 ```
 *App will launch at `http://localhost:5173`*
 
+
+## OR
+1. Start the Backend (Terminal 1)
+Open a new terminal window, navigate to your project folder, activate the Python virtual environment, and start the FastAPI server:
+
+powershell:
+cd c:\Users\rizvi\orma-ai\backend
+venv\Scripts\activate
+uvicorn main:app --reload
+
+The backend will now be running at http://localhost:8000.
+
+2. Start the Frontend (Terminal 2)
+Open a second, separate terminal window, navigate to the frontend folder, and start the React app:
+
+powershell:
+cd c:\Users\rizvi\orma-ai\frontend
+npm run dev
 ---
 
 ## ⚙️ Usage Guide
@@ -149,14 +167,16 @@ npm run dev
 2. **Interact:** Open the web app on a tablet or desktop. Press the large microphone button and speak a command (e.g., *"I have to take my blood pressure medicine every day at 8 AM"*).
 3. **Memory Extraction:** Watch the backend terminal—it will extract the routine and save it to the local SQLite database.
 4. **Trigger Alerts:** When the scheduled time hits, a loud, high-contrast modal will override the screen to alert the user.
-5. **Emergency Simulation:** Try saying *"I have chest pain"*. The system will immediately bypass normal conversation, flag the emergency, and pulse a red distress UI.
+5. **Caregiver Dashboard:** Log in to view mock data representations of adherence monitoring.
 
 ---
 
 ## 🛣️ Future Enhancements
 
 - [ ] **Vector Database Integration:** Migrate from SQLite rule-based extraction to ChromaDB for infinite, semantic vector-based memory retrieval.
-- [ ] **Family Monitoring Web Portal:** Launch a remote dashboard allowing children to monitor their parent's medicine adherence and vital check-ins.
+- [ ] **Real-Time Caregiver Dashboard:** Connect the UI preview dashboard to live backend WebSockets to monitor adherence and vital check-ins.
+- [ ] **Emotional Wellness Analytics:** Add semantic sentiment analysis to track mood and confusion over time.
+- [ ] **Emergency Detection System:** Real-time semantic monitoring for physical distress (e.g., "I fell down") using intent classification.
 - [ ] **SMS Integration:** Connect Twilio to the Emergency Detection pipeline to automatically text family members if a crisis is detected.
 - [ ] **IoT Hardware Build:** Port the React frontend to a Raspberry Pi setup, creating a standalone smart speaker.
 - [ ] **Advanced Voice Cloning:** Replace the browser's Web Speech API with Piper TTS / Coqui TTS for emotionally-resonant voice models.

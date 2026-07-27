@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { useReactMediaRecorder } from 'react-media-recorder';
@@ -74,7 +74,7 @@ export default function VoiceRecorder({ onRecordingComplete, isProcessing, onSta
   };
 
   return (
-    <div className="flex flex-col items-center justify-center p-8 glass-card relative overflow-hidden w-full h-full">
+    <div className="flex flex-col items-center justify-center p-8 orma-card relative overflow-hidden w-full h-full">
       {/* Background animated pulses */}
       <AnimatePresence>
         {isListening && (
@@ -160,9 +160,9 @@ export default function VoiceRecorder({ onRecordingComplete, isProcessing, onSta
                   key={i}
                   animate={{ height: ['20%', '100%', '20%'] }}
                   transition={{
-                    duration: 0.6 + Math.random() * 0.4,
+                    duration: 0.8,
                     repeat: Infinity,
-                    delay: Math.random() * 0.3,
+                    delay: 0.15,
                     ease: "easeInOut"
                   }}
                   className="w-1.5 bg-gradient-to-t from-blue-600 to-cyan-400 rounded-full"
@@ -176,9 +176,9 @@ export default function VoiceRecorder({ onRecordingComplete, isProcessing, onSta
                   key={i}
                   animate={{ height: ['20%', '100%', '20%'] }}
                   transition={{
-                    duration: 0.4 + Math.random() * 0.4,
+                    duration: 0.6,
                     repeat: Infinity,
-                    delay: Math.random() * 0.2,
+                    delay: 0.1,
                     ease: "easeInOut"
                   }}
                   className="w-1.5 bg-gradient-to-t from-purple-500 to-pink-400 rounded-full"

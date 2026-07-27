@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mic, Upload, Edit3, Pill, CheckCircle2, AlertTriangle, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Mic, Upload, Edit3, Pill, CheckCircle2, AlertTriangle, AlertCircle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, Lock } from 'lucide-react';
 import { medicineApi, speechApi } from '../services/api';
+import ReminderTimePicker from './ReminderTimePicker';
 
 export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
   const [mode, setMode] = useState('select'); // select, manual, voice, ocr, verify
@@ -12,10 +13,9 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
   const [formData, setFormData] = useState({
     medicine_name: '',
     dosage: '',
-    timing: '08:00 AM',
+    timings: ['08:00 AM'],
+    frequency: 'Once Daily',
     purpose: '',
-    frequency: '',
-    notes: '',
     suggestion: null,
     confidence: 100
   });
@@ -24,17 +24,17 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  const resetState = () => {
-    setMode('select');
-    setFormData({
-      medicine_name: '', dosage: '', timing: '08:00 AM', purpose: '', frequency: '', notes: '', suggestion: null, confidence: 100
-    });
-    setError(null);
-    setLoading(false);
-  };
+  // Reset when opened
+  useEffect(() => {
+    if (isOpen) {
+      setMode('select');
+      setFormData({ medicine_name: '', dosage: '', timings: ['08:00 AM'], frequency: 'Once Daily', purpose: '', suggestion: null, confidence: 100 });
+      setError(null);
+      setLoading(false);
+    }
+  }, [isOpen]);
 
   const handleClose = () => {
-    resetState();
     onClose();
   };
 
@@ -43,18 +43,45 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleFrequencyChange = (newFreq) => {
+    let newTimings = ['08:00 AM'];
+    if (newFreq === 'Twice Daily') {
+      newTimings = ['08:00 AM', '08:00 PM'];
+    } else if (newFreq === 'Three Times Daily') {
+      newTimings = ['08:00 AM', '02:00 PM', '08:00 PM'];
+    } else if (newFreq === 'SOS (As Needed)') {
+      newTimings = [];
+    }
+    setFormData(prev => ({ ...prev, frequency: newFreq, timings: newTimings }));
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setLoading(true);
     setError(null);
     try {
+      if (formData.frequency !== 'SOS (As Needed)') {
+        if (!formData.timings || formData.timings.length === 0 || formData.timings.some(t => !t)) {
+          setError("Please select valid reminder times.");
+          setLoading(false);
+          return;
+        }
+        if (new Set(formData.timings).size !== formData.timings.length) {
+          setError("Duplicate reminder times detected. Please select a unique time for each dose.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const finalTimings = formData.frequency === 'SOS (As Needed)' ? '' : formData.timings.join(', ');
+
       await medicineApi.createReminder({
         medicine_name: formData.medicine_name,
         dosage: formData.dosage,
-        reminder_time: formData.timing,
-        purpose: formData.purpose,
+        reminder_time: finalTimings,
         frequency: formData.frequency,
-        notes: formData.notes
+        purpose: formData.purpose,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
       onAdded();
       handleClose();
@@ -99,23 +126,22 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Transcribe
       const transResult = await speechApi.transcribe(audioBlob, 'en');
       const text = transResult.transcription;
       if (!text) throw new Error("Could not transcribe voice.");
       
-      // 2. Parse
       const parseResult = await medicineApi.parseVoice(text);
       if (parseResult.status === 'success') {
         const { data } = parseResult;
+        let timings = data.timing ? data.timing.split(',').map(t => t.trim()) : ['08:00 AM'];
+        let freq = data.frequency || 'Once Daily';
         setFormData(prev => ({
           ...prev,
           medicine_name: data.medicine_name || '',
           dosage: data.dosage || '',
-          timing: data.timing || '',
+          timings: timings,
+          frequency: freq,
           purpose: data.purpose || '',
-          frequency: data.frequency || '',
-          notes: data.notes || '',
           suggestion: data.suggestion,
           confidence: data.confidence
         }));
@@ -149,8 +175,6 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
           dosage: data.dosage || '',
           timing: data.timing || '',
           purpose: data.purpose || '',
-          frequency: data.frequency || '',
-          notes: data.notes || '',
           suggestion: data.suggestion,
           confidence: data.confidence
         }));
@@ -174,244 +198,284 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-950/90 backdrop-blur-xl overflow-y-auto"
       >
         <motion.div 
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          className="bg-slate-800 border border-slate-700/50 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]"
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className={`bg-slate-900 border border-slate-700/50 rounded-[2rem] shadow-[0_0_80px_rgba(0,0,0,0.8)] flex flex-col relative w-full ${mode === 'select' ? 'max-w-6xl' : 'max-w-2xl'} min-h-[500px] my-auto`}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-slate-700/50 shrink-0">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Pill className="text-blue-400 w-6 h-6" />
-              {mode === 'select' && "How would you like to add medicines?"}
-              {mode === 'manual' && "Manual Entry"}
-              {mode === 'voice' && "Voice Entry"}
-              {mode === 'ocr' && "Processing Prescription"}
-              {mode === 'verify' && "Human Verification"}
-            </h2>
-            <button onClick={handleClose} className="text-slate-400 hover:text-white transition-colors bg-slate-700/30 p-2 rounded-full">
-              <X className="w-5 h-5" />
+          
+          {/* Close Button (Absolute for Select mode) */}
+          {mode === 'select' && (
+            <button onClick={handleClose} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700 p-3 rounded-full z-20">
+              <X className="w-6 h-6" />
             </button>
-          </div>
+          )}
 
-          <div className="p-6 overflow-y-auto">
+          {/* Header for Inner Forms */}
+          {mode !== 'select' && (
+            <div className="flex items-center justify-between p-6 md:p-8 border-b border-slate-800 shrink-0 bg-slate-900 rounded-t-[2rem] z-10">
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setMode('select')}
+                  className="p-3 bg-slate-800 hover:bg-slate-700 rounded-full transition-colors text-slate-300 flex-shrink-0"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white truncate">
+                  {mode === 'manual' && "Type Medicine"}
+                  {mode === 'voice' && "Voice Entry"}
+                  {mode === 'ocr' && "Scan Prescription"}
+                  {mode === 'verify' && "Verify Details"}
+                </h2>
+              </div>
+              <button onClick={handleClose} className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 p-3 rounded-full flex-shrink-0 ml-4">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col items-center p-6 md:p-10 lg:p-12 overflow-y-auto overflow-x-hidden w-full">
+            
             {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-sm">{error}</p>
+              <div className="w-full max-w-2xl mb-8 p-5 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 flex items-center gap-4 shrink-0">
+                <AlertCircle className="w-8 h-8 shrink-0" />
+                <p className="text-lg font-medium">{error}</p>
               </div>
             )}
 
-            {/* Mode: Selection */}
+            {/* STEP 1: Massive Premium Selection Mode */}
             {mode === 'select' && (
-              <div className="grid gap-4">
-                <button 
-                  onClick={() => setMode('manual')}
-                  className="flex flex-col items-center gap-3 p-6 bg-slate-700/30 hover:bg-slate-700/60 border border-slate-600/50 rounded-2xl transition-all"
-                >
-                  <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
-                    <Edit3 className="w-8 h-8" />
+              <div className="w-full flex flex-col items-center max-w-5xl mx-auto">
+                
+                {/* Header Titles */}
+                <div className="text-center mb-12">
+                  <div className="w-20 h-20 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl relative group">
+                    <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl group-hover:bg-blue-500/30 transition-all"></div>
+                    <Pill className="w-10 h-10 text-blue-400 relative z-10" />
                   </div>
-                  <h3 className="text-lg font-bold text-white">Manual Entry</h3>
-                  <p className="text-sm text-slate-400 text-center">Type in medicine details directly.</p>
-                </button>
+                  <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">Add Medicine</h1>
+                  <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto">
+                    Choose the easiest way to add your medicine. We'll help you stay on track.
+                  </p>
+                </div>
 
-                <button 
-                  onClick={() => setMode('voice')}
-                  className="flex flex-col items-center gap-3 p-6 bg-slate-700/30 hover:bg-slate-700/60 border border-slate-600/50 rounded-2xl transition-all"
-                >
-                  <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 mb-2">
-                    <Mic className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white">Voice Input</h3>
-                  <p className="text-sm text-slate-400 text-center">Speak the medicine details.</p>
-                </button>
-
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center gap-3 p-6 bg-slate-700/30 hover:bg-slate-700/60 border border-slate-600/50 rounded-2xl transition-all"
-                >
-                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 mb-2">
-                    <Upload className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white">Upload Prescription</h3>
-                  <p className="text-sm text-slate-400 text-center">Extract details using OCR.</p>
-                </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*,.pdf" 
-                  onChange={handleFileUpload} 
-                />
-              </div>
-            )}
-
-            {/* Mode: Voice Recording */}
-            {mode === 'voice' && (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <p className="text-slate-300 mb-8 max-w-sm">
-                  Say something like:<br/>"Add Amlodipine 10mg at 8 AM for Blood Pressure"
-                </p>
-                {loading ? (
-                  <div className="flex flex-col items-center">
-                    <Loader2 className="w-12 h-12 text-blue-400 animate-spin mb-4" />
-                    <p className="text-blue-300 font-medium">Extracting details...</p>
-                  </div>
-                ) : (
+                {/* The 3 Big Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mb-10">
+                  
+                  {/* Card 1: Type */}
                   <button 
-                    onClick={recording ? stopVoiceRecording : startVoiceRecording}
-                    className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
-                      recording 
-                        ? 'bg-red-500 text-white shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse' 
-                        : 'bg-purple-500 text-white hover:scale-105'
-                    }`}
+                    onClick={() => setMode('manual')}
+                    className="flex flex-col items-center text-center p-8 lg:p-10 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-blue-500/50 rounded-3xl transition-all duration-300 group min-h-[280px]"
                   >
-                    <Mic className="w-10 h-10" />
+                    <div className="w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative">
+                      <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-lg group-hover:blur-xl transition-all"></div>
+                      <Edit3 className="w-8 h-8 text-blue-400 relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-3">Type Medicine</h3>
+                    <p className="text-base text-slate-400 mb-8 leading-relaxed flex-1">
+                      Manually enter medicine details like name, dosage and time.
+                    </p>
+                    <div className="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
+                      <ArrowRight className="w-6 h-6 text-slate-400 group-hover:text-white" />
+                    </div>
                   </button>
-                )}
-                <p className="mt-6 text-sm text-slate-400 font-medium h-6">
-                  {recording ? "Recording... Tap to stop" : (!loading && "Tap to start speaking")}
-                </p>
+
+                  {/* Card 2: Voice */}
+                  <button 
+                    onClick={() => setMode('voice')}
+                    className="flex flex-col items-center text-center p-8 lg:p-10 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-emerald-500/50 rounded-3xl transition-all duration-300 group min-h-[280px]"
+                  >
+                    <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative">
+                      <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-lg group-hover:blur-xl transition-all"></div>
+                      <Mic className="w-8 h-8 text-emerald-400 relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-3">Voice Entry</h3>
+                    <p className="text-base text-slate-400 mb-8 leading-relaxed flex-1">
+                      Speak medicine name, dosage and time. We'll save it for you.
+                    </p>
+                    <div className="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-emerald-600 flex items-center justify-center transition-colors">
+                      <ArrowRight className="w-6 h-6 text-slate-400 group-hover:text-white" />
+                    </div>
+                  </button>
+
+                  {/* Card 3: Scan */}
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center text-center p-8 lg:p-10 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-purple-500/50 rounded-3xl transition-all duration-300 group min-h-[280px]"
+                  >
+                    <div className="w-20 h-20 rounded-full bg-purple-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative">
+                      <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-lg group-hover:blur-xl transition-all"></div>
+                      <Upload className="w-8 h-8 text-purple-400 relative z-10" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-3">Scan Prescription</h3>
+                    <p className="text-base text-slate-400 mb-8 leading-relaxed flex-1">
+                      Upload or scan your prescription and we'll extract the medicine details.
+                    </p>
+                    <div className="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-purple-600 flex items-center justify-center transition-colors">
+                      <ArrowRight className="w-6 h-6 text-slate-400 group-hover:text-white" />
+                    </div>
+                  </button>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileUpload} />
+                </div>
+
+                {/* Trust Badge */}
+                <div className="orma-card">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-6 h-6 text-slate-300" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-lg font-bold text-white">Your Information is Safe</h4>
+                      <p className="text-sm text-slate-400">All medicine data is encrypted and stored securely.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-lg shrink-0">
+                    <Lock className="w-4 h-4" />
+                    <span className="text-sm font-bold">100% Secure</span>
+                  </div>
+                </div>
+
+                {/* Cancel Link */}
+                <button onClick={handleClose} className="text-slate-400 hover:text-white text-lg font-medium transition-colors">
+                  Cancel
+                </button>
+
               </div>
             )}
 
-            {/* Mode: OCR Loading */}
-            {mode === 'ocr' && loading && (
-               <div className="flex flex-col items-center justify-center py-16 text-center">
-                 <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mb-6" />
-                 <h3 className="text-lg font-bold text-white mb-2">Scanning Prescription...</h3>
-                 <p className="text-slate-400 text-sm max-w-xs">
-                   AI is extracting medicine details using OCR. This may take a moment.
-                 </p>
-               </div>
-            )}
-
-            {/* Mode: Verification or Manual Form */}
-            {(mode === 'verify' || mode === 'manual') && (
-              <form id="medicine-form" onSubmit={handleSubmit} className="space-y-4">
-                {mode === 'verify' && (
-                  <div className="mb-6">
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
-                      <h4 className="text-sm font-bold text-blue-400 mb-1 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4" />
-                        AI-assisted prescription digitization
-                      </h4>
-                      <p className="text-xs text-blue-200">
-                        Please verify the extracted information below before saving. AI does not replace a doctor.
-                      </p>
-                    </div>
-
-                    {formData.suggestion && (
-                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-amber-200">AI Correction Suggestion</p>
-                          <p className="text-xs text-amber-400/80 mt-1">{formData.suggestion}</p>
-                          <p className="text-xs text-amber-400/60 mt-1">Confidence Score: {formData.confidence}%</p>
-                        </div>
-                      </div>
+            {/* Content Area for other modes */}
+            {mode !== 'select' && (
+              <div className="flex flex-col justify-center w-full max-w-2xl">
+                
+                {/* Voice Mode */}
+                {mode === 'voice' && (
+                  <div className="flex flex-col items-center text-center py-12">
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-16 h-16 text-emerald-400 animate-spin mb-6" />
+                        <p className="text-2xl text-white font-medium">Extracting details...</p>
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={recording ? stopVoiceRecording : startVoiceRecording}
+                          className={`w-40 h-40 rounded-[3rem] flex items-center justify-center transition-all shadow-2xl shrink-0 ${
+                            recording 
+                              ? 'bg-red-500 text-white shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse scale-105' 
+                              : 'bg-emerald-600 text-white hover:bg-emerald-500 hover:scale-105'
+                          }`}
+                        >
+                          <Mic className="w-20 h-20" />
+                        </button>
+                        <p className="mt-10 text-2xl text-white font-bold px-4">
+                          {recording ? "Recording... Tap to stop" : "Tap the microphone"}
+                        </p>
+                        <p className="mt-4 text-xl text-slate-400 px-4">
+                          Say: "Add Amlodipine 10mg at 8 AM"
+                        </p>
+                      </>
                     )}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-400">Medicine Name *</label>
-                    <input 
-                      required
-                      name="medicine_name"
-                      value={formData.medicine_name}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                      placeholder="e.g. Amlodipine"
-                    />
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-400">Dosage</label>
-                    <input 
-                      name="dosage"
-                      value={formData.dosage}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                      placeholder="e.g. 10mg"
-                    />
-                  </div>
+                {/* OCR Loading Mode */}
+                {mode === 'ocr' && loading && (
+                   <div className="flex flex-col items-center text-center py-16">
+                     <Loader2 className="w-16 h-16 text-purple-400 animate-spin mb-6" />
+                     <h3 className="text-2xl font-bold text-white mb-4">Scanning Prescription...</h3>
+                     <p className="text-xl text-slate-400">Please wait a moment.</p>
+                   </div>
+                )}
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-400">Timing *</label>
-                    <input 
-                      required
-                      name="timing"
-                      value={formData.timing}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                      placeholder="e.g. 08:00 AM"
-                    />
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-400">Frequency</label>
-                    <input 
-                      name="frequency"
-                      value={formData.frequency}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                      placeholder="e.g. Once daily"
-                    />
-                  </div>
+                {/* Manual / Verify Form */}
+                {(mode === 'manual' || mode === 'verify') && (
+                  <form id="medicine-form" onSubmit={handleSubmit} className="flex flex-col gap-5 sm:gap-6 pb-4 w-full">
+                    {mode === 'verify' && formData.suggestion && (
+                      <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex flex-col sm:flex-row items-start gap-4 shrink-0">
+                        <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0" />
+                        <div>
+                          <p className="text-lg font-bold text-amber-300">AI Correction Suggestion</p>
+                          <p className="text-base text-amber-200/90 mt-1">{formData.suggestion}</p>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-medium text-slate-400">Purpose</label>
-                    <input 
-                      name="purpose"
-                      value={formData.purpose}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                      placeholder="e.g. Blood Pressure"
-                    />
-                  </div>
+                    <div className="space-y-3 shrink-0">
+                      <label className="text-lg font-bold text-slate-300 ml-2">Medicine Name</label>
+                      <input 
+                        required
+                        name="medicine_name"
+                        value={formData.medicine_name}
+                        onChange={handleInputChange}
+                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-5 sm:px-6 py-4 sm:py-5 text-xl text-white font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all outline-none"
+                        placeholder="e.g. Amlodipine"
+                      />
+                    </div>
+                    
+                    <div className="space-y-3 shrink-0">
+                      <label className="text-lg font-bold text-slate-300 ml-2">Dosage</label>
+                      <input 
+                        name="dosage"
+                        value={formData.dosage}
+                        onChange={handleInputChange}
+                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-5 sm:px-6 py-4 sm:py-5 text-xl text-white font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all outline-none"
+                        placeholder="e.g. 10mg"
+                      />
+                    </div>
 
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-medium text-slate-400">Notes</label>
-                    <textarea 
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all outline-none resize-none h-24"
-                      placeholder="e.g. Take after food"
-                    />
-                  </div>
-                </div>
-              </form>
-            )}
-          </div>
+                    <div className="space-y-3 shrink-0">
+                      <label className="text-lg font-bold text-slate-300 ml-2">Frequency</label>
+                      <select 
+                        required
+                        value={formData.frequency || 'Once Daily'}
+                        onChange={(e) => handleFrequencyChange(e.target.value)}
+                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-5 sm:px-6 py-4 sm:py-5 text-xl text-white font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all outline-none appearance-none"
+                      >
+                        <option value="Once Daily">Once Daily</option>
+                        <option value="Twice Daily">Twice Daily</option>
+                        <option value="Three Times Daily">Three Times Daily</option>
+                        <option value="SOS (As Needed)">SOS (As Needed)</option>
+                        <option value="Custom">Custom</option>
+                      </select>
+                    </div>
 
-          {/* Footer Actions */}
-          <div className="p-6 border-t border-slate-700/50 shrink-0 flex gap-3">
-            {mode !== 'select' && !loading && (
-              <button 
-                onClick={() => setMode('select')}
-                className="px-6 py-3 rounded-xl font-bold text-slate-300 hover:text-white bg-slate-700/50 hover:bg-slate-700 transition-colors"
-              >
-                Back
-              </button>
-            )}
-            <div className="flex-1"></div>
-            {(mode === 'manual' || mode === 'verify') && (
-              <button 
-                form="medicine-form"
-                type="submit"
-                disabled={loading}
-                className="px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {mode === 'verify' ? "Confirm & Save" : "Save Medicine"}
-              </button>
+                    {formData.frequency !== 'SOS (As Needed)' && (
+                      <div className="space-y-3 shrink-0">
+                        <ReminderTimePicker
+                          timings={formData.timings || ['08:00 AM']}
+                          onChange={(newTimings) => setFormData(prev => ({ ...prev, timings: newTimings }))}
+                          frequency={formData.frequency || 'Once Daily'}
+                          isCustom={formData.frequency === 'Custom'}
+                        />
+                      </div>
+                    )}
+
+                    <div className="space-y-3 shrink-0">
+                      <label className="text-lg font-bold text-slate-300 ml-2">Purpose (Optional)</label>
+                      <input 
+                        name="purpose"
+                        value={formData.purpose}
+                        onChange={handleInputChange}
+                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-5 sm:px-6 py-4 sm:py-5 text-xl text-white font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all outline-none"
+                        placeholder="e.g. Blood Pressure"
+                      />
+                    </div>
+                    
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className="orma-btn-primary"
+                    >
+                      {loading && <Loader2 className="w-8 h-8 animate-spin" />}
+                      {mode === 'verify' ? "Confirm & Save" : "Save Medicine"}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
           </div>
         </motion.div>

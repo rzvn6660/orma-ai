@@ -1,32 +1,35 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Activity, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ShieldAlert, AlertTriangle } from 'lucide-react';
 
-export default function EmergencyAlert({ isActive = false, severity = 'low' }) {
+export default function EmergencyAlert({ isActive = false, severity = 'low', onViewChange }) {
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.5 }}
-      className={`glass-card overflow-hidden relative group border ${isActive ? 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)] animate-pulse' : 'border-transparent'}`}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.6, delay: 0.4 }}
+      className={`orma-card p-6 border transition-all duration-300 rounded-[2rem] shadow-xl ${
+        isActive 
+          ? 'border-red-500 bg-red-900/20 shadow-[0_0_40px_rgba(239,68,68,0.3)] animate-pulse' 
+          : 'border-slate-700/50 bg-slate-800/40'
+      }`}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-500 ${isActive ? 'from-red-600/30 to-orange-600/20' : 'from-red-500/10 to-orange-500/5 group-hover:from-red-500/20'}`} />
-      
-      <div className="p-6 relative z-10 flex flex-col items-center justify-center text-center">
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 relative ${isActive ? 'bg-red-500/40' : 'bg-red-500/20'}`}>
-          <div className={`absolute inset-0 rounded-full opacity-75 ${isActive ? 'bg-red-500/60 animate-ping' : 'bg-red-500/30 animate-ping'}`} />
-          <ShieldAlert className={`w-8 h-8 ${isActive ? 'text-red-200' : 'text-red-400'}`} />
-        </div>
-        
-        <h3 className={`text-xl font-bold mb-2 ${isActive ? 'text-red-400' : 'text-white'}`}>
-          {isActive ? `Emergency Detected (${severity.toUpperCase()})` : 'Emergency Help'}
+      <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-700/50">
+        <h3 className={`text-[17px] font-medium tracking-wide ${isActive ? 'text-red-400' : 'text-white'}`}>
+          {isActive ? `Emergency (${severity.toUpperCase()})` : 'Emergency Help'}
         </h3>
-        <p className={`text-sm mb-6 ${isActive ? 'text-red-200' : 'text-slate-400'}`}>
-          {isActive ? 'Alerting your emergency contacts immediately.' : 'Press and hold for 3 seconds to alert family and emergency services.'}
-        </p>
-        
-        <button className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all active:scale-95 flex justify-center items-center gap-2">
-          <AlertTriangle className="w-5 h-5" />
+        <ShieldAlert className={`w-5 h-5 ${isActive ? 'text-red-500 animate-bounce' : 'text-slate-400'}`} />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <button 
+          onClick={() => onViewChange && onViewChange('emergency')}
+          className={`w-full py-3 rounded-xl font-medium text-[15px] transition-all flex justify-center items-center gap-2 shadow-lg active:scale-[0.98] ${
+            isActive
+              ? 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]'
+              : 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/40'
+          }`}
+        >
+          <AlertTriangle className={`w-4 h-4 ${isActive ? 'fill-current' : ''}`} />
           SOS Alert
         </button>
       </div>

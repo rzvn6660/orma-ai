@@ -2,10 +2,14 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from database import Base
 import datetime
 
-class MedicineReminder(Base):
+from database import Base
+from .identity_mixin import IdentityMixin
+
+class MedicineReminder(Base, IdentityMixin):
     __tablename__ = "medicine_reminders"
 
     id = Column(Integer, primary_key=True, index=True)
+    elder_id = Column(String, index=True, nullable=True) # Added for security isolation
     medicine_name = Column(String, index=True)
     dosage = Column(String)
     reminder_time = Column(String) # e.g. "08:00 AM"
@@ -14,6 +18,7 @@ class MedicineReminder(Base):
     purpose = Column(String, nullable=True)
     frequency = Column(String, nullable=True)
     notes = Column(String, nullable=True)
+    timezone = Column(String, default="UTC")
     
     # Adherence Tracking Fields
     confirmation_method = Column(String, nullable=True) # 'voice', 'manual', 'unverified'

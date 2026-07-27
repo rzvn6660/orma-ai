@@ -17,6 +17,10 @@
   --color-danger-hover: #dc2626;
   --color-success: #10b981;
   --color-warning: #f59e0b;
+
+  /* Global Design Tokens */
+  --radius-card: 2rem;
+  --shadow-card: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 @layer base {
@@ -36,26 +40,181 @@
 }
 
 @layer utilities {
-  .glass-panel {
-    @apply bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 shadow-2xl;
-  }
-  
-  .glass-card {
-    @apply bg-slate-800/40 backdrop-blur-lg border border-slate-700/50 shadow-xl rounded-2xl;
-  }
-
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-sky-400 to-indigo-400;
   }
-  
-  .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl transition-all duration-300 shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2 border border-blue-500/50;
+}
+
+@layer components {
+  /* ==========================================================================
+     ORMA AI MASTER DESIGN SYSTEM
+     ========================================================================== */
+
+  /* CARDS */
+  .orma-card {
+    @apply bg-slate-800/50 backdrop-blur-md border border-slate-700/50 shadow-lg rounded-2xl p-6 transition-all overflow-hidden;
+  }
+  .orma-card-hover {
+    @apply hover:bg-slate-700/50 hover:border-slate-600/50 hover:shadow-2xl hover:-translate-y-1 cursor-pointer;
+  }
+  .orma-card-compact {
+    @apply p-4;
   }
 
-  .btn-glass {
-    @apply bg-slate-800/50 hover:bg-slate-700/50 backdrop-blur-md text-slate-200 font-medium px-4 py-2 rounded-xl transition-all duration-300 border border-slate-600/50 flex items-center justify-center gap-2;
+  /* BUTTONS */
+  .orma-btn {
+    @apply h-12 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed outline-none focus-visible:ring-4;
+  }
+  .orma-btn-primary {
+    @apply h-12 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed outline-none focus-visible:ring-4 focus-visible:ring-blue-500/50 bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-transparent;
+  }
+  .orma-btn-secondary {
+    @apply h-12 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed outline-none focus-visible:ring-4 focus-visible:ring-slate-500/50 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700;
+  }
+  .orma-btn-danger {
+    @apply h-12 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed outline-none focus-visible:ring-4 focus-visible:ring-red-500/50 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50;
+  }
+  .orma-btn-ghost {
+    @apply h-12 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed outline-none focus-visible:ring-4 focus-visible:ring-slate-500/50 bg-transparent hover:bg-slate-800/50 text-slate-400 hover:text-white;
+  }
+  .orma-btn-icon {
+    @apply p-0 w-12 h-12 flex items-center justify-center rounded-xl transition-all active:scale-[0.95] hover:bg-slate-800/80 text-slate-400 hover:text-white outline-none focus-visible:ring-4 focus-visible:ring-slate-500/50 disabled:opacity-50;
   }
   
+  /* INPUTS & FORMS */
+  .orma-input {
+    @apply w-full h-12 bg-slate-900/50 border border-slate-700 rounded-xl px-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all;
+  }
+  .orma-label {
+    @apply block text-sm font-bold text-slate-300 mb-2;
+  }
+
+  /* LIGHT THEME AUTH FORM ACCESSIBILITY & CONTRAST */
+  .orma-light-input {
+    background-color: #F1F5F9 !important;
+    color: #172033 !important;
+    border-color: #CBD5E1 !important;
+    font-weight: 500 !important;
+  }
+  .orma-light-input::placeholder {
+    color: #64748B !important;
+    opacity: 1 !important;
+    font-weight: 400 !important;
+  }
+  .orma-light-input:focus {
+    border-color: #a855f7 !important;
+    box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.15) !important;
+    outline: none !important;
+  }
+
+  /* Webkit Autofill Override to prevent pale yellow/blue background & faint text */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover, 
+  input:-webkit-autofill:focus, 
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: #172033 !important;
+    -webkit-box-shadow: 0 0 0px 1000px #F1F5F9 inset !important;
+    transition: background-color 5000s ease-in-out 0s !important;
+    font-weight: 500 !important;
+  }
+
+  /* BADGES */
+  .orma-badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full border whitespace-nowrap;
+  }
+  .orma-badge-success {
+    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/20;
+  }
+  .orma-badge-warning {
+    @apply bg-amber-500/10 text-amber-400 border-amber-500/20;
+  }
+  .orma-badge-danger {
+    @apply bg-red-500/10 text-red-400 border-red-500/20;
+  }
+  .orma-badge-info {
+    @apply bg-blue-500/10 text-blue-400 border-blue-500/20;
+  }
+  .orma-badge-neutral {
+    @apply bg-slate-800 text-slate-300 border-slate-700;
+  }
+
+  /* TYPOGRAPHY */
+  .orma-title {
+    @apply text-3xl sm:text-4xl font-extrabold text-white tracking-tight;
+  }
+  .orma-h1 {
+    @apply text-2xl sm:text-3xl font-bold text-white tracking-tight;
+  }
+  .orma-h2 {
+    @apply text-xl font-bold text-white;
+  }
+  .orma-h3 {
+    @apply text-lg font-bold text-white;
+  }
+  .orma-subtitle {
+    @apply text-slate-400 text-base sm:text-lg;
+  }
+  .orma-caption {
+    @apply text-xs uppercase tracking-widest font-bold text-slate-500;
+  }
+  
+  /* LAYOUT & SPACING */
+  .orma-page {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full;
+  }
+  .orma-section {
+    @apply mb-12;
+  }
+  .orma-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+  .orma-flex-center {
+    @apply flex items-center justify-center;
+  }
+  .orma-flex-between {
+    @apply flex items-center justify-between;
+  }
+
+  /* MODALS */
+  .orma-modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md;
+  }
+  .orma-modal-content {
+    @apply bg-slate-900 border border-slate-700/50 rounded-[2rem] p-6 sm:p-8 w-[90vw] max-w-lg shadow-2xl relative outline-none flex flex-col;
+  }
+
+  /* TABLES */
+  .orma-table-wrapper {
+    @apply w-full overflow-x-auto rounded-2xl border border-slate-700/50 bg-slate-800/30;
+  }
+  .orma-table {
+    @apply w-full text-left border-collapse min-w-[600px];
+  }
+  .orma-th {
+    @apply px-6 py-4 border-b border-slate-700/50 bg-slate-900/50 text-xs font-bold uppercase tracking-wider text-slate-400;
+  }
+  .orma-td {
+    @apply px-6 py-5 border-b border-slate-700/50 text-sm text-slate-200 bg-transparent transition-colors;
+  }
+  .orma-tr {
+    @apply hover:bg-slate-800/50 transition-colors;
+  }
+  .orma-table tr:last-child td {
+    @apply border-b-0;
+  }
+  
+  /* EMPTY STATES */
+  .orma-empty-state {
+    @apply flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-700/50 rounded-2xl bg-slate-900/20;
+  }
+  
+  /* SKELETONS */
+  .orma-skeleton {
+    @apply animate-pulse bg-slate-800 rounded-xl;
+  }
+}
+
+@layer utilities {
   /* Waveform animation for voice AI */
   .waveform-bar {
     animation: pulse-wave 1.2s ease-in-out infinite;

@@ -2,9 +2,8 @@ import os
 from faster_whisper import WhisperModel
 
 # Initialize the Whisper model.
-# Using 'medium' model for vastly improved Malayalam support.
-# In a production setting with GPU, you would use 'cuda' and 'large-v3'.
-MODEL_SIZE = "medium"
+# Using 'small' model for fast response times while maintaining decent support.
+MODEL_SIZE = "small"
 model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
 
 def transcribe_audio(file_path: str, language: str = None) -> dict:
@@ -19,7 +18,7 @@ def transcribe_audio(file_path: str, language: str = None) -> dict:
         dict: A dictionary containing 'text' and 'detected_language'.
     """
     try:
-        kwargs = {"beam_size": 5}
+        kwargs = {"beam_size": 1}
         if language:
             kwargs["language"] = language
             

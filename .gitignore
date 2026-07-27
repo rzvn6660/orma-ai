@@ -28,6 +28,8 @@ backend/temp_audio/
 backend/orma.db
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
 
 # Logs
 logs/

@@ -1,6 +1,6 @@
 import json
 import httpx
-from utils.medicine_matcher import fuzzy_match_medicine
+from utils.medicine_matcher import fuzzy_match_medicine, normalize_dosage, normalize_timing
 
 async def parse_medicine_text(raw_text: str) -> dict:
     """
@@ -9,9 +9,15 @@ async def parse_medicine_text(raw_text: str) -> dict:
     """
     prompt = (
         "You are an AI medical assistant extracting prescription data. "
-        "Extract the medicine name, dosage, timing, purpose, frequency, and notes from the following raw text. "
-        "Return strictly valid JSON with the following keys: "
-        "'medicine_name', 'dosage', 'timing', 'purpose', 'frequency', 'notes'. If a field is missing, set it to an empty string. "
+        "Extract EVERY medicine mentioned in the text. Continue parsing until the prescription ends to ensure no medicine is missed. "
+        "Return strictly valid JSON as an ARRAY of objects. Each object must have these keys: "
+        "'event_type' (e.g. medicine, doctor_appointment, blood_test, exercise, water_reminder, etc), "
+        "'title' (e.g. medicine name, doctor name), 'description' (e.g. dosage, specialty), "
+        "'timing' (e.g. 08:00 AM), 'event_date' (YYYY-MM-DD), 'purpose', 'frequency', 'notes', 'location', 'contact_number'. "
+        "IMPORTANT RULES:\n"
+        "- Never hallucinate medicine strengths or modify numbers. Validate extracted dosage directly from the text. If missing or uncertain, leave 'dosage' blank (\"\").\n"
+        "- If time/frequency is not explicitly stated (e.g. SOS, or none), do NOT invent default times. Leave 'timing' and 'frequency' blank (\"\").\n"
+        "- Preserve the original order of the medicines.\n"
         "Do NOT include markdown formatting or extra text.\n\n"
         f"Raw Text: {raw_text}"
     )
@@ -34,34 +40,62 @@ async def parse_medicine_text(raw_text: str) -> dict:
                 raw_json = data.get("response", "{}")
                 parsed = json.loads(raw_json)
                 
-                # Apply fuzzy matching to the extracted name
-                original_name = parsed.get("medicine_name", "")
-                corrected_name = fuzzy_match_medicine(original_name)
+                # If LLM returned a single dict instead of a list, wrap it
+                if isinstance(parsed, dict):
+                    parsed = [parsed]
                 
-                return {
-                    "medicine_name": corrected_name,
-                    "original_ocr_name": original_name,
-                    "dosage": parsed.get("dosage", ""),
-                    "timing": parsed.get("timing", "08:00 AM"),
-                    "purpose": parsed.get("purpose", ""),
-                    "frequency": parsed.get("frequency", ""),
-                    "notes": parsed.get("notes", ""),
-                    "confidence": 85 if original_name == corrected_name else 60,
-                    "suggestion": f"Did you mean {corrected_name}?" if original_name != corrected_name else None
-                }
+                results = []
+                for med in parsed:
+                    event_type = med.get("event_type", "medicine")
+                    title = med.get("title") or med.get("medicine_name", "")
+                    description = med.get("description") or med.get("dosage", "")
+                    
+                    if not title:
+                        continue
+                        
+                    # Fuzzy match only if it's a medicine
+                    corrected_name = fuzzy_match_medicine(title) if event_type == 'medicine' else title
+                    corrected_dosage = normalize_dosage(description) if event_type == 'medicine' else description
+                    
+                    raw_timing = med.get("timing", "")
+                    corrected_timing = normalize_timing(raw_timing) if raw_timing else ""
+                    
+                    results.append({
+                        "id": f"new_{len(results)}",
+                        "event_type": event_type,
+                        "title": corrected_name,
+                        "description": corrected_dosage,
+                        "medicine_name": corrected_name, # backward compatibility
+                        "dosage": corrected_dosage, # backward compatibility
+                        "original_ocr_name": title,
+                        "timing": corrected_timing,
+                        "event_date": med.get("event_date", ""),
+                        "location": med.get("location", ""),
+                        "contact_number": med.get("contact_number", ""),
+                        "purpose": med.get("purpose", ""),
+                        "frequency": med.get("frequency", ""),
+                        "notes": med.get("notes", ""),
+                        "confidence": 85 if title == corrected_name else 60,
+                        "suggestion": f"Did you mean {corrected_name}?" if title != corrected_name else None
+                    })
+                
+                return results
             else:
                 raise ValueError("Failed to get response from Ollama")
     except Exception as e:
         print(f"Error parsing medicine: {e}")
         # Fallback mechanism
-        return {
+        return [{
+            "event_type": "medicine",
+            "title": "Unknown",
+            "description": "",
             "medicine_name": "Unknown",
             "original_ocr_name": "Unknown",
             "dosage": "",
-            "timing": "08:00 AM",
+            "timing": "",
             "purpose": "",
             "frequency": "",
             "notes": "",
             "confidence": 0,
             "suggestion": "Could not parse correctly. Please verify."
-        }
+        }]

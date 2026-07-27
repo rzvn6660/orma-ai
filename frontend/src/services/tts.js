@@ -2,71 +2,97 @@
  * Text-to-Speech (TTS) Service
  * 
  * Modular service for AI voice responses.
- * Currently uses browser's SpeechSynthesis API, structured to be easily 
- * swappable with backend TTS like Coqui/Piper in the future.
  */
 
 class TTSService {
   constructor() {
     this.synth = window.speechSynthesis;
     this.voice = null;
+    this.volume = this._getStoredVolume();
     this.init();
   }
 
-  init() {
-    // Load voices and select a natural sounding English voice
-    const loadVoices = () => {
-      const voices = this.synth.getVoices();
-      if (voices.length > 0) {
-        // Try to find a premium/natural sounding female voice
-        this.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Natural')) || voices[0];
-      }
-    };
+  _getStoredVolume() {
+    const vol = localStorage.getItem('orma_tts_volume') || 'High';
+    return this.mapVolume(vol);
+  }
 
+  mapVolume(level) {
+    switch(level) {
+      case 'Low': return 0.3;
+      case 'Medium': return 0.6;
+      case 'High': return 1.0;
+      case 'Maximum': return 1.0; // Max allowed by Web Speech API
+      default: return 1.0;
+    }
+  }
+
+  setVolumeLevel(level) {
+    localStorage.setItem('orma_tts_volume', level);
+    this.volume = this.mapVolume(level);
+  }
+
+  getVolumeLevel() {
+    return localStorage.getItem('orma_tts_volume') || 'High';
+  }
+
+  init() {
+    const loadVoices = () => {
+      this.voices = this.synth.getVoices();
+    };
     loadVoices();
     if (this.synth.onvoiceschanged !== undefined) {
       this.synth.onvoiceschanged = loadVoices;
     }
   }
 
-  /**
-   * Speak a text string.
-   * @param {string} text - The text to speak.
-   * @param {Object} callbacks - Optional callbacks { onStart, onEnd, onError }
-   */
-  speak(text, callbacks = {}) {
-    this.stop(); // Stop any ongoing speech
+  isMalayalam(text) {
+    return /[\u0D00-\u0D7F]/.test(text);
+  }
 
+  getBestVoice(text) {
+    if (!this.voices || this.voices.length === 0) return null;
+    
+    // Ensure spoken language strictly matches the displayed text script
+    if (this.isMalayalam(text)) {
+      return this.voices.find(v => v.lang.includes('ml')) || 
+             this.voices.find(v => v.name.toLowerCase().includes('malayalam')) || 
+             this.voices[0];
+    }
+    
+    // Default English
+    return this.voices.find(v => v.lang.includes('en') && (v.name.includes('Google') || v.name.includes('Premium') || v.name.includes('Natural'))) || 
+           this.voices.find(v => v.lang.includes('en')) || 
+           this.voices[0];
+  }
+
+  speak(text, callbacks = {}) {
+    this.stop(); 
     if (!text) return;
 
+    // Store last assistant message locally
+    localStorage.setItem('orma_last_tts_message', text);
+
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    if (this.voice) {
-      utterance.voice = this.voice;
+    const selectedVoice = this.getBestVoice(text);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
     
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    utterance.volume = 1.0;
+    
+    // Refresh volume in case it was changed in another tab or just before
+    this.volume = this._getStoredVolume();
+    utterance.volume = this.volume;
 
-    if (callbacks.onStart) {
-      utterance.onstart = callbacks.onStart;
-    }
-    
-    if (callbacks.onEnd) {
-      utterance.onend = callbacks.onEnd;
-    }
-    
-    if (callbacks.onError) {
-      utterance.onerror = callbacks.onError;
-    }
+    if (callbacks.onStart) utterance.onstart = callbacks.onStart;
+    if (callbacks.onEnd) utterance.onend = callbacks.onEnd;
+    if (callbacks.onError) utterance.onerror = callbacks.onError;
 
     this.synth.speak(utterance);
   }
 
-  /**
-   * Stop current speech playback.
-   */
   stop() {
     if (this.synth.speaking) {
       this.synth.cancel();
@@ -75,3 +101,4 @@ class TTSService {
 }
 
 export const tts = new TTSService();
+
