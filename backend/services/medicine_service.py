@@ -56,10 +56,15 @@ def create_reminder(db: Session, reminder: ReminderCreate, actor_id: str, subjec
     return db_reminder
 
 def get_reminders_for_users(db: Session, subject_ids: list[str], skip: int = 0, limit: int = 100):
-    return db.query(MedicineReminder).filter(MedicineReminder.subject_id.in_(subject_ids)).offset(skip).limit(limit).all()
+    return db.query(MedicineReminder).filter(
+        (MedicineReminder.subject_id.in_(subject_ids)) | (MedicineReminder.elder_id.in_(subject_ids))
+    ).offset(skip).limit(limit).all()
 
 def mark_taken(db: Session, reminder_id: int, subject_id: str):
-    db_reminder = db.query(MedicineReminder).filter(MedicineReminder.id == reminder_id, MedicineReminder.subject_id == subject_id).first()
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
     if db_reminder:
         db_reminder = calculate_confidence_score(db_reminder, "manual")
         db_reminder.taken_status = True
@@ -70,7 +75,10 @@ def mark_taken(db: Session, reminder_id: int, subject_id: str):
     return db_reminder
 
 def mark_missed(db: Session, reminder_id: int, subject_id: str):
-    db_reminder = db.query(MedicineReminder).filter(MedicineReminder.id == reminder_id, MedicineReminder.subject_id == subject_id).first()
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
     if db_reminder:
         db_reminder.adherence_pattern_flags = "missed"
         db_reminder.confirmation_method = "unverified"
@@ -79,8 +87,35 @@ def mark_missed(db: Session, reminder_id: int, subject_id: str):
         db.refresh(db_reminder)
     return db_reminder
 
+def mark_skipped(db: Session, reminder_id: int, subject_id: str):
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
+    if db_reminder:
+        db_reminder.adherence_pattern_flags = "skipped"
+        db_reminder.confirmation_method = "manual"
+        db_reminder.taken_status = False
+        db.commit()
+        db.refresh(db_reminder)
+    return db_reminder
+
+def snooze_reminder(db: Session, reminder_id: int, subject_id: str, minutes: int = 10):
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
+    if db_reminder:
+        db_reminder.adherence_pattern_flags = "snoozed"
+        db.commit()
+        db.refresh(db_reminder)
+    return db_reminder
+
 def update_reminder(db: Session, reminder_id: int, subject_id: str, updates: dict):
-    db_reminder = db.query(MedicineReminder).filter(MedicineReminder.id == reminder_id, MedicineReminder.subject_id == subject_id).first()
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
     if db_reminder:
         for key, value in updates.items():
             if hasattr(db_reminder, key):
@@ -117,7 +152,10 @@ def mark_latest_pending_taken(db: Session):
     return db_reminder
 
 def delete_reminder(db: Session, reminder_id: int, subject_id: str):
-    db_reminder = db.query(MedicineReminder).filter(MedicineReminder.id == reminder_id, MedicineReminder.subject_id == subject_id).first()
+    db_reminder = db.query(MedicineReminder).filter(
+        MedicineReminder.id == reminder_id, 
+        (MedicineReminder.subject_id == subject_id) | (MedicineReminder.elder_id == subject_id)
+    ).first()
     if db_reminder:
         db.delete(db_reminder)
         db.commit()

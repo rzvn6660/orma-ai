@@ -47,7 +47,7 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
     let newTimings = ['08:00 AM'];
     if (newFreq === 'Twice Daily') {
       newTimings = ['08:00 AM', '08:00 PM'];
-    } else if (newFreq === 'Three Times Daily') {
+    } else if (newFreq === 'Three Times Daily' || newFreq === 'Thrice Daily') {
       newTimings = ['08:00 AM', '02:00 PM', '08:00 PM'];
     } else if (newFreq === 'SOS (As Needed)') {
       newTimings = [];
@@ -429,18 +429,34 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
 
                     <div className="space-y-3 shrink-0">
                       <label className="text-lg font-bold text-slate-300 ml-2">Frequency</label>
-                      <select 
-                        required
-                        value={formData.frequency || 'Once Daily'}
-                        onChange={(e) => handleFrequencyChange(e.target.value)}
-                        className="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl px-5 sm:px-6 py-4 sm:py-5 text-xl text-white font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all outline-none appearance-none"
-                      >
-                        <option value="Once Daily">Once Daily</option>
-                        <option value="Twice Daily">Twice Daily</option>
-                        <option value="Three Times Daily">Three Times Daily</option>
-                        <option value="SOS (As Needed)">SOS (As Needed)</option>
-                        <option value="Custom">Custom</option>
-                      </select>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {[
+                          { label: 'Once Daily', detail: '1 time per day', value: 'Once Daily' },
+                          { label: 'Twice Daily', detail: '2 times per day', value: 'Twice Daily' },
+                          { label: 'Three Times Daily', detail: '3 times per day', value: 'Three Times Daily' },
+                          { label: 'SOS', detail: 'As needed only', value: 'SOS (As Needed)' },
+                          { label: 'Custom', detail: 'Flexible times', value: 'Custom' },
+                        ].map((item) => {
+                          const isSelected = (formData.frequency || 'Once Daily') === item.value;
+                          return (
+                            <button
+                              key={item.value}
+                              type="button"
+                              onClick={() => handleFrequencyChange(item.value)}
+                              className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-center ${
+                                isSelected
+                                  ? 'bg-blue-600/30 border-blue-400 text-white shadow-lg shadow-blue-600/20 ring-2 ring-blue-400/30 scale-[1.02]'
+                                  : 'bg-slate-950/80 border-slate-700/80 text-slate-300 hover:bg-slate-800 hover:border-slate-600 hover:text-white'
+                              }`}
+                            >
+                              <span className="font-extrabold text-base leading-tight">{item.label}</span>
+                              <span className={`text-xs font-semibold mt-1 ${isSelected ? 'text-blue-300' : 'text-slate-400'}`}>
+                                {item.detail}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {formData.frequency !== 'SOS (As Needed)' && (

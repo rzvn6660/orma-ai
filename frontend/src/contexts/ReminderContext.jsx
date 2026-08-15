@@ -101,7 +101,9 @@ export function ReminderProvider({ children }) {
       setPendingReminders(prev => prev.filter(p => p.id !== med.id));
       
       try {
-        await medicineApi.missMedicine(med.id);
+        if (typeof med.id === 'number') {
+          await medicineApi.missMedicine(med.id);
+        }
       } catch(e) {
         // Rollback on miss failure is tricky since it's background, but we can restore it to pending.
         console.error('Failed to mark miss:', e);

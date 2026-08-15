@@ -64,19 +64,19 @@ export default function TimeAwareDashboard({ user, timeContext }) {
   if (totalCount === 0) {
     statusMessage = "No medicines scheduled for today.";
     statusIcon = <CheckCircle2 className="w-5 h-5" />;
-    statusColor = "text-slate-400 bg-slate-800/40 border-slate-700/50";
+    statusColor = "text-slate-300 bg-slate-800/60 border-slate-700/60";
   } else if (allCompleted) {
     statusMessage = "Excellent work! You've completed all your medicines today.";
-    statusIcon = <Sparkles className="w-5 h-5 text-yellow-400" />;
-    statusColor = "text-emerald-400 bg-emerald-900/20 border-emerald-500/30";
+    statusIcon = <Sparkles className="w-5 h-5 text-emerald-400" />;
+    statusColor = "text-emerald-300 bg-emerald-950/40 border-emerald-500/40";
   } else if (hasOverdue) {
-    statusMessage = "One medicine is overdue. Please take it as soon as possible.";
-    statusIcon = <AlertTriangle className="w-5 h-5" />;
-    statusColor = "text-red-400 bg-red-900/20 border-red-500/30 animate-pulse";
+    statusMessage = "One medicine is past its scheduled time. Take your dose when ready.";
+    statusIcon = <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />;
+    statusColor = "text-amber-200 bg-amber-950/40 border-amber-500/40";
   } else {
     statusMessage = `You have ${pendingMedicines.length} medicine${pendingMedicines.length > 1 ? 's' : ''} remaining today.`;
-    statusIcon = <HeartPulse className="w-5 h-5" />;
-    statusColor = "text-blue-400 bg-blue-900/20 border-blue-500/30";
+    statusIcon = <HeartPulse className="w-5 h-5 text-blue-400 shrink-0" />;
+    statusColor = "text-blue-200 bg-blue-950/40 border-blue-500/40";
   }
 
   return (

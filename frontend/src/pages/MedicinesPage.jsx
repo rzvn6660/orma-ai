@@ -95,7 +95,7 @@ export default function MedicinesPage({ user }) {
     
     if (newFreq === 'Twice Daily') {
       newTimings = ['08:00 AM', '08:00 PM'];
-    } else if (newFreq === 'Three Times Daily') {
+    } else if (newFreq === 'Three Times Daily' || newFreq === 'Thrice Daily') {
       newTimings = ['08:00 AM', '02:00 PM', '08:00 PM'];
     } else if (newFreq === 'Every X Hours') {
       newTimings = ['06:00 AM', '12:00 PM', '06:00 PM', '12:00 AM'];

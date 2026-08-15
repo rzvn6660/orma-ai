@@ -53,11 +53,12 @@ export default function NotificationCenter({ user }) {
     <div className="relative">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 bg-slate-800/80 hover:bg-slate-700/80 rounded-full transition-colors focus:outline-none"
+        aria-label={`Notifications (${unreadCount} unread)`}
+        className="relative p-2.5 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
       >
-        <Bell className="w-6 h-6 text-slate-300" />
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-bounce shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1.5 bg-red-600 text-white text-[11px] font-extrabold rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(239,68,68,0.5)] border-2 border-slate-900">
             {unreadCount}
           </span>
         )}

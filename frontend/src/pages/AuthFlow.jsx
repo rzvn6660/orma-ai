@@ -321,37 +321,37 @@ export default function AuthFlow({ onLogin, onBack }) {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Email Address</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Email Address</label>
+                    <div className="relative flex items-center group">
+                      <Mail className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type="email" 
                         name="email" 
                         value={formData.email} 
                         onChange={handleChange} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-4 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-4 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="you@family.com" 
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Password</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Password</label>
+                    <div className="relative flex items-center group">
+                      <Lock className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type={showPassword ? "text" : "password"} 
                         name="password" 
                         value={formData.password} 
                         onChange={handleChange} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-12 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-12 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="••••••••" 
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-2.5 p-1.5 rounded-xl text-slate-400 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                        className="absolute right-3.5 p-2 rounded-xl text-slate-500 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors cursor-pointer z-10"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
                         {showPassword ? (
@@ -424,15 +424,15 @@ export default function AuthFlow({ onLogin, onBack }) {
 
                 <form onSubmit={handlePhoneRequest} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Phone Number</label>
-                    <div className="relative group">
-                      <Smartphone className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Phone Number</label>
+                    <div className="relative flex items-center group">
+                      <Smartphone className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type="tel" 
                         value={phoneData.phone} 
                         onChange={(e) => setPhoneData({...phoneData, phone: e.target.value})} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-4 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-4 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="+1 (555) 000-0000" 
                       />
                     </div>
@@ -466,16 +466,16 @@ export default function AuthFlow({ onLogin, onBack }) {
 
                 <form onSubmit={handlePhoneVerify} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Secure OTP</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Secure OTP</label>
+                    <div className="relative flex items-center group">
+                      <Lock className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type="text" 
                         maxLength={6} 
                         value={phoneData.otp} 
                         onChange={(e) => setPhoneData({...phoneData, otp: e.target.value})} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-4 text-[#172033] text-center tracking-[0.5em] focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all font-bold orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-4 text-[#172033] text-center tracking-[0.5em] focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all font-bold text-lg orma-light-input" 
                         placeholder="123456" 
                       />
                     </div>
@@ -556,52 +556,52 @@ export default function AuthFlow({ onLogin, onBack }) {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Full Name</label>
-                    <div className="relative group">
-                      <UserCircle className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Full Name</label>
+                    <div className="relative flex items-center group">
+                      <UserCircle className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type="text" 
                         name="name" 
                         value={formData.name} 
                         onChange={handleChange} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-4 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-4 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="Sarah Jenkins" 
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Email Address</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Email Address</label>
+                    <div className="relative flex items-center group">
+                      <Mail className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type="email" 
                         name="email" 
                         value={formData.email} 
                         onChange={handleChange} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-4 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-4 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="you@family.com" 
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-slate-800 mb-2 ml-1">Secure Password</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-3.5 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none" />
+                    <label className="block text-sm font-bold text-slate-900 mb-2 ml-1">Secure Password</label>
+                    <div className="relative flex items-center group">
+                      <Lock className="absolute left-4 w-5 h-5 text-slate-500 group-focus-within:text-purple-600 transition-colors pointer-events-none z-10" />
                       <input 
                         required 
                         type={showSignupPassword ? "text" : "password"} 
                         name="password" 
                         value={formData.password} 
                         onChange={handleChange} 
-                        className="w-full bg-[#F1F5F9] border border-slate-300 rounded-2xl py-3.5 pl-12 pr-12 text-[#172033] font-medium placeholder:text-slate-500 focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
+                        className="w-full h-14 bg-[#F1F5F9] border-2 border-slate-300 rounded-2xl pl-12 pr-12 text-[#172033] font-semibold text-base placeholder:text-slate-500 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 transition-all orma-light-input" 
                         placeholder="••••••••" 
                       />
                       <button
                         type="button"
                         onClick={() => setShowSignupPassword(!showSignupPassword)}
-                        className="absolute right-3 top-2.5 p-1.5 rounded-xl text-slate-400 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                        className="absolute right-3.5 p-2 rounded-xl text-slate-500 hover:text-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-colors cursor-pointer z-10"
                         aria-label={showSignupPassword ? "Hide password" : "Show password"}
                       >
                         {showSignupPassword ? (

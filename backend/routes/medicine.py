@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import os
 import shutil
 from database import get_db
@@ -13,6 +14,9 @@ from models.user import User, CaregiverRelationship
 from services.websocket_manager import manager
 
 router = APIRouter()
+
+class SnoozePayload(BaseModel):
+    minutes: Optional[int] = 10
 
 @router.post("/", response_model=medicine_service.ReminderResponse)
 def create_reminder(reminder: medicine_service.ReminderCreate, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
@@ -93,6 +97,39 @@ async def miss_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depe
             "message": f"Medicine {reminder.medicine_name} was missed."
         }, rel.caregiver_id)
         
+    return reminder
+
+@router.put("/{id}/skipped", response_model=medicine_service.ReminderResponse)
+async def skip_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
+    """
+    Mark a medicine reminder as skipped.
+    """
+    subject = ctx['resolved_subject']
+    reminder = medicine_service.mark_skipped(db, reminder_id=id, subject_id=subject["id"])
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+        
+    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
+    for rel in rels:
+        await manager.send_personal_message({
+            "type": "medicine_skipped",
+            "medicine_id": reminder.id,
+            "medicine_name": reminder.medicine_name,
+            "message": f"Medicine {reminder.medicine_name} was skipped."
+        }, rel.caregiver_id)
+        
+    return reminder
+
+@router.put("/{id}/snooze", response_model=medicine_service.ReminderResponse)
+async def snooze_medicine(id: int, payload: Optional[SnoozePayload] = None, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
+    """
+    Snooze a medicine reminder.
+    """
+    subject = ctx['resolved_subject']
+    minutes = payload.minutes if payload and payload.minutes else 10
+    reminder = medicine_service.snooze_reminder(db, reminder_id=id, subject_id=subject["id"], minutes=minutes)
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Reminder not found")
     return reminder
 
 @router.put("/{id}", response_model=medicine_service.ReminderResponse)

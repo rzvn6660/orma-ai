@@ -179,8 +179,18 @@ export default function MedicineReminder({ onViewChange }) {
 
       <div className="space-y-4">
         {medicines.length === 0 ? (
-          <div className="text-center py-6 text-slate-400">
-            <p className="text-sm font-light mb-2">No medicines scheduled.</p>
+          <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed border-slate-700/60 rounded-2xl bg-slate-900/40 my-2">
+            <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-3">
+              <Pill className="w-6 h-6" />
+            </div>
+            <p className="text-base font-bold text-white mb-1">No medicines scheduled</p>
+            <p className="text-xs text-slate-400 mb-4">Add your daily medications to receive smart voice & text reminders.</p>
+            <button
+              onClick={() => onViewChange('medicines')}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md flex items-center gap-1.5"
+            >
+              + Add Medicine
+            </button>
           </div>
         ) : (
           groups.map(group => {

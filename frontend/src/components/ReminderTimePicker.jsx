@@ -139,13 +139,13 @@ export function SingleTimePickerRow({ value, onChange, label = "Dose Time", onDe
         
         {/* Hour Select with explicit dropdown arrow */}
         <div className="flex flex-col">
-          <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Hour</span>
+          <span className="text-xs font-black text-slate-300 uppercase tracking-wider mb-1.5 ml-1">Hour</span>
           <div className="relative flex items-center">
             <select
               value={hour}
               onChange={handleHourChange}
               aria-label="Select Hour"
-              className="h-14 min-w-[96px] bg-slate-900 border-2 border-slate-700 hover:border-blue-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/25 rounded-2xl pl-4 pr-10 text-2xl font-black text-white text-center cursor-pointer outline-none transition-all appearance-none shadow-inner"
+              className="h-14 min-w-[104px] bg-slate-900 border-2 border-slate-600 hover:border-blue-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/30 rounded-2xl pl-4 pr-10 text-2xl font-black text-white text-center cursor-pointer outline-none transition-all appearance-none shadow-inner"
             >
               {HOURS.map((h) => (
                 <option key={h} value={h} className="bg-slate-900 text-white font-bold py-2 text-lg">
@@ -158,17 +158,17 @@ export function SingleTimePickerRow({ value, onChange, label = "Dose Time", onDe
         </div>
 
         {/* Colon Separator */}
-        <span className="text-3xl font-black text-slate-400 pt-5 font-mono select-none">:</span>
+        <span className="text-3xl font-black text-slate-300 pt-5 font-mono select-none">:</span>
 
         {/* Minute Select with explicit dropdown arrow */}
         <div className="flex flex-col">
-          <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Minute</span>
+          <span className="text-xs font-black text-slate-300 uppercase tracking-wider mb-1.5 ml-1">Minute</span>
           <div className="relative flex items-center">
             <select
               value={minute}
               onChange={handleMinuteChange}
               aria-label="Select Minute"
-              className="h-14 min-w-[96px] bg-slate-900 border-2 border-slate-700 hover:border-blue-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/25 rounded-2xl pl-4 pr-10 text-2xl font-black text-white text-center cursor-pointer outline-none transition-all appearance-none shadow-inner"
+              className="h-14 min-w-[104px] bg-slate-900 border-2 border-slate-600 hover:border-blue-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-400/30 rounded-2xl pl-4 pr-10 text-2xl font-black text-white text-center cursor-pointer outline-none transition-all appearance-none shadow-inner"
             >
               <optgroup label="Common Times">
                 {COMMON_MINUTES.map((m) => (
@@ -191,17 +191,17 @@ export function SingleTimePickerRow({ value, onChange, label = "Dose Time", onDe
 
         {/* AM / PM Large Segmented Toggle */}
         <div className="flex flex-col ml-auto sm:ml-2">
-          <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">AM or PM</span>
-          <div className="flex items-center h-14 bg-slate-900 p-1.5 rounded-2xl border-2 border-slate-700 gap-1.5 shadow-inner" role="radiogroup" aria-label="AM or PM selection">
+          <span className="text-xs font-black text-slate-300 uppercase tracking-wider mb-1.5 ml-1">AM or PM</span>
+          <div className="flex items-center h-14 bg-slate-900 p-1.5 rounded-2xl border-2 border-slate-600 gap-1.5 shadow-inner" role="radiogroup" aria-label="AM or PM selection">
             <button
               type="button"
               onClick={() => handlePeriodChange('AM')}
               aria-label="Select AM"
               aria-pressed={period === 'AM'}
-              className={`h-full px-5 rounded-xl font-black text-lg transition-all cursor-pointer flex items-center justify-center min-w-[64px] ${
+              className={`h-full px-5 rounded-xl font-black text-lg transition-all cursor-pointer flex items-center justify-center min-w-[68px] ${
                 period === 'AM'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40 border-2 border-blue-400 scale-[1.02]'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
               AM
@@ -211,10 +211,10 @@ export function SingleTimePickerRow({ value, onChange, label = "Dose Time", onDe
               onClick={() => handlePeriodChange('PM')}
               aria-label="Select PM"
               aria-pressed={period === 'PM'}
-              className={`h-full px-5 rounded-xl font-black text-lg transition-all cursor-pointer flex items-center justify-center min-w-[64px] ${
+              className={`h-full px-5 rounded-xl font-black text-lg transition-all cursor-pointer flex items-center justify-center min-w-[68px] ${
                 period === 'PM'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/40 border-2 border-blue-400 scale-[1.02]'
-                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
               PM
