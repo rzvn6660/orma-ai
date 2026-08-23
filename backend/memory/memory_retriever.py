@@ -14,13 +14,13 @@ class MemoryRetriever:
     # Mapping orchestration intents to relevant memory categories
     INTENT_CATEGORY_MAP = {
         "Appointment": ["Appointment", "Health", "Doctor", "Important Event"],
-        "Family": ["Family", "Caregiver", "Personal"],
+        "Family": ["Family", "Caregiver", "Personal", "Relationships", "RELATIONSHIPS"],
         "Medicine": ["Medicine", "Health", "Preference"],
         "HealthRecord": ["Health", "Medicine", "Appointment"],
         "Emergency": ["Health", "Medicine", "Family", "Personal"],
-        "GeneralChat": ["Personal", "Preference", "Conversation", "Family", "Important Event"],
+        "GeneralChat": ["Personal", "Preference", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
         "Reminder": ["Temporary", "Preference", "Medicine", "Appointment"],
-        "Memory": ["Personal", "Family", "Health", "Medicine", "Appointment", "Preference", "Important Event", "Temporary", "Conversation", "Custom"],
+        "Memory": ["Personal", "Family", "Relationships", "RELATIONSHIPS", "Health", "Medicine", "Appointment", "Preference", "Important Event", "Temporary", "Conversation", "Custom"],
         "Caregiver": ["Family", "Caregiver", "Health", "Preference"],
         "Settings": ["Preference", "Custom"]
     }
@@ -28,7 +28,7 @@ class MemoryRetriever:
     def __init__(self):
         pass
 
-    def retrieve(self, db: Session, user_id: int, intent: str, limit: int = 5) -> List[OCMEMemory]:
+    def retrieve(self, db: Session, user_id: Any, intent: str, limit: int = 5) -> List[OCMEMemory]:
         """
         Retrieves, ranks, and returns the top 3-5 most relevant memories.
         Automatically updates usage statistics.
@@ -39,9 +39,13 @@ class MemoryRetriever:
         categories = self.INTENT_CATEGORY_MAP.get(intent, ["Personal", "Conversation", "Preference"])
         
         # 2. Query
-        # We fetch all matching categories for the user (we could pre-filter if it's too large)
+        from sqlalchemy import or_
+        filters = [OCMEMemory.user_id == str(user_id)]
+        if str(user_id).isdigit():
+            filters.append(OCMEMemory.user_id == int(user_id))
+            
         memories = db.query(OCMEMemory).filter(
-            OCMEMemory.user_id == user_id,
+            or_(*filters),
             OCMEMemory.category.in_(categories)
         ).all()
         

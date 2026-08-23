@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: orma-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    disk:
+      name: orma-data
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SQLITE_DB_PATH
+        value: /data/orma.db
+      - key: RAG_UPLOAD_DIR
+        value: /data/uploads/documents
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: onboarding@resend.dev
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false

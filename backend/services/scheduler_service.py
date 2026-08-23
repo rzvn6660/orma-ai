@@ -75,6 +75,8 @@ def process_event(db, item, item_type):
                 logger.info(f"Triggering reminder for {item.title} in {tz_name}")
             
             item.reminder_triggered_at = datetime.utcnow()
+            item.is_caregiver_notified = False
+            item.caregiver_notified_at = None
             db.commit()
             
             # Route through the scalable notification manager safely on the main event loop
@@ -84,13 +86,21 @@ def process_event(db, item, item_type):
                     main_app_loop
                 )
     
-    # Escalation Check: If triggered more than 30 mins ago and still not taken
-    if getattr(item, "reminder_triggered_at", None):
-        time_diff = now_utc - item.reminder_triggered_at.replace(tzinfo=pytz.utc)
-        escalation_key = f"escalated_{item_type}_{item.id}"
+    # Escalation Check: If triggered more than 30 mins ago, still pending, and caregiver not yet notified
+    triggered_at = getattr(item, "reminder_triggered_at", None)
+    is_notified = getattr(item, "is_caregiver_notified", False)
+    
+    if triggered_at and not is_notified:
+        trig_utc = triggered_at if triggered_at.tzinfo else pytz.utc.localize(triggered_at)
+        time_diff = now_utc - trig_utc
         
-        if time_diff.total_seconds() > 1800 and escalation_key not in triggered_today:
-            triggered_today.add(escalation_key)
+        if time_diff.total_seconds() > 1800:
+            item.is_caregiver_notified = True
+            item.caregiver_notified_at = datetime.utcnow()
+            item.adherence_pattern_flags = "missed"
+            db.commit()
+            
+            logger.info(f"[CAREGIVER] Escalating missed reminder ID={item.id} (Type={item_type}) to caregiver")
             from services.notification_manager import notification_manager
             import asyncio
             if main_app_loop and main_app_loop.is_running():

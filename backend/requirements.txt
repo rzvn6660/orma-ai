@@ -17,4 +17,5 @@ pytz
 openwakeword
 reportlab
 google-auth
-
+PyMuPDF
+resend

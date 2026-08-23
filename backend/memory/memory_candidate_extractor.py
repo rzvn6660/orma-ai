@@ -34,51 +34,49 @@ class MemoryCandidateExtractor:
 
         candidates = []
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "http://localhost:11434/api/generate",
-                    json={
-                        "model": "llama3",
-                        "prompt": prompt,
-                        "stream": False,
-                        "format": "json"
-                    },
-                    timeout=15.0
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    raw_json = data.get("response", "[]")
-                    extracted = json.loads(raw_json)
+            from llm.ai_manager import ai_manager
+            res = await ai_manager.generate(prompt=prompt, max_tokens=200)
+            text_resp = res.get("text", "")
+            extracted = []
+            if text_resp:
+                start = text_resp.find('[')
+                end = text_resp.rfind(']')
+                if start != -1 and end != -1:
+                    json_str = text_resp[start:end+1]
+                    try:
+                        extracted = json.loads(json_str)
+                        if isinstance(extracted, dict):
+                            extracted = [extracted]
+                    except Exception:
+                        extracted = []
+                        
+            for item in extracted:
+                if not isinstance(item, dict):
+                    continue
+                title = item.get("title")
+                value = item.get("value")
+                if not title or not value:
+                    continue
                     
-                    if isinstance(extracted, dict):
-                        extracted = [extracted]
-                        
-                    for item in extracted:
-                        title = item.get("title")
-                        value = item.get("value")
-                        if not title or not value:
-                            continue
-                            
-                        # Enrich the candidate using the engines
-                        category = memory_classifier.classify(value, context_intent)
-                        importance = importance_engine.calculate_importance(category, value)
-                        
-                        # Base extraction confidence can be assumed high if LLM extracted it clearly
-                        base_confidence = 0.9
-                        confidence, recommendation = confidence_engine.evaluate_confidence(value, base_confidence)
-                        
-                        candidate = {
-                            "title": title,
-                            "value": value,
-                            "category": category,
-                            "importance": importance,
-                            "confidence": confidence,
-                            "recommendation": recommendation,
-                            "source": "conversation"
-                        }
-                        candidates.append(candidate)
-                        logger.info(f"[MemoryCandidateExtractor] Extracted candidate: {candidate}")
+                # Enrich the candidate using the engines
+                category = memory_classifier.classify(value, context_intent)
+                importance = importance_engine.calculate_importance(category, value)
+                
+                # Base extraction confidence can be assumed high if LLM extracted it clearly
+                base_confidence = 0.9
+                confidence, recommendation = confidence_engine.evaluate_confidence(value, base_confidence)
+                
+                candidate = {
+                    "title": title,
+                    "value": value,
+                    "category": category,
+                    "importance": importance,
+                    "confidence": confidence,
+                    "recommendation": recommendation,
+                    "source": "conversation"
+                }
+                candidates.append(candidate)
+                logger.info(f"[MemoryCandidateExtractor] Extracted candidate: {candidate}")
                         
         except Exception as e:
             logger.error(f"[MemoryCandidateExtractor] Extraction failed: {e}")

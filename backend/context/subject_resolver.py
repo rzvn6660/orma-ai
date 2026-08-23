@@ -23,10 +23,11 @@ class SubjectResolver:
         if actor["role"] == "caregiver":
             # If the UI specifically sent the active subject ID, use it directly
             if active_subject_id and db_session:
-                uid_int = int(active_subject_id) if str(active_subject_id).isdigit() else 1
-                patient = db_session.query(User).filter(User.id == uid_int).first()
+                patient = db_session.query(User).filter(User.id == str(active_subject_id)).first()
+                if not patient and str(active_subject_id).isdigit():
+                    patient = db_session.query(User).filter(User.id == int(active_subject_id)).first()
                 if patient:
-                    subject_id = active_subject_id
+                    subject_id = str(patient.id)
                     subject_name = patient.name
                     subject_role = patient.role
                     return {

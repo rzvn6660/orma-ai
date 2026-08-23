@@ -6,31 +6,41 @@ export const ReminderSoundService = {
   play: async () => {
     if (!ReminderSoundService.isEnabled()) return;
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      
+      const ctx = new AudioContextClass();
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
+      }
+      
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
       osc.type = 'sine';
       
-      // Soft, calm two-tone chime (e.g. C5 -> E5)
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.3);
+      // Soft, calm two-tone chime (C5: 523.25Hz -> E5: 659.25Hz)
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(659.25, now + 0.25);
       
-      // Gentle fade in and out (max volume 0.5)
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.5, ctx.currentTime + 0.4);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.2);
+      // Gentle fade in and out (max volume 0.35 - calm and reassuring)
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.35, now + 0.08);
+      gain.gain.setValueAtTime(0.35, now + 0.35);
+      gain.gain.linearRampToValueAtTime(0, now + 0.85);
       
       osc.connect(gain);
       gain.connect(ctx.destination);
       
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 1.2);
+      osc.start(now);
+      osc.stop(now + 0.85);
       
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      await new Promise(resolve => setTimeout(resolve, 900));
+      ctx.close().catch(() => {});
     } catch (err) {
-      console.warn('[ReminderSoundService] Failed to play sound:', err);
+      console.warn('[ReminderSoundService] Audio playback skipped or blocked:', err);
     }
   }
 };
+

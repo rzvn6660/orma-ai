@@ -200,34 +200,22 @@ export default function HealthRecordsPage({ user }) {
 
       <div className="flex gap-4 border-b border-slate-800 mb-8 overflow-x-auto whitespace-nowrap custom-scrollbar">
         <button 
-          className={`pb-4 px-2 font-medium text-lg transition-colors ${activeTab === 'overview' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`pb-4 px-2 font-medium text-base transition-colors ${activeTab === 'overview' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
           onClick={() => setActiveTab('overview')}
         >
           Overview
         </button>
         <button 
-          className={`pb-4 px-2 font-medium text-lg transition-colors ${activeTab === 'records' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`pb-4 px-2 font-medium text-base transition-colors ${activeTab === 'records' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
           onClick={() => setActiveTab('records')}
         >
           Health Records
         </button>
         <button 
-          className={`pb-4 px-2 font-medium text-lg transition-colors ${activeTab === 'vitals' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`pb-4 px-2 font-medium text-base transition-colors ${activeTab === 'vitals' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
           onClick={() => setActiveTab('vitals')}
         >
           Vitals
-        </button>
-        <button 
-          className={`pb-4 px-2 font-medium text-lg transition-colors ${activeTab === 'reports' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-400 hover:text-slate-200'}`}
-          onClick={() => setActiveTab('reports')}
-        >
-          Reports
-        </button>
-        <button 
-          className={`pb-4 px-2 font-medium text-lg transition-colors opacity-60 cursor-not-allowed`}
-          disabled
-        >
-          Device Integration (Coming Soon)
         </button>
       </div>
 

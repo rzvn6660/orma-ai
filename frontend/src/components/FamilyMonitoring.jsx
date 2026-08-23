@@ -12,8 +12,8 @@ export default function FamilyMonitoring() {
     try {
       setError(false);
       const data = await linkApi.getLinkedUsers();
-      const list = data?.linked_caregivers || [];
-      setCaregivers(list.slice(0, 3));
+      const list = data?.linked_caregivers;
+      setCaregivers(Array.isArray(list) ? list.slice(0, 3) : []);
     } catch (err) {
       console.error("Failed to fetch linked caregivers", err);
       setError(true);

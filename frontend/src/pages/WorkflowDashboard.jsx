@@ -22,7 +22,8 @@ export default function WorkflowDashboard({ currentView, onViewChange, user, onL
     loadData();
     
     // Subscribe to SSE for live updates
-    const eventSource = new EventSource('http://127.0.0.1:8000/api/owe/events');
+    const apiBase = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+    const eventSource = new EventSource(`${apiBase}/api/owe/events`);
     
     eventSource.onmessage = (event) => {
       console.log("Received OWE Event:", event.data);

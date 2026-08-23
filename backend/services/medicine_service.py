@@ -70,6 +70,8 @@ def mark_taken(db: Session, reminder_id: int, subject_id: str):
         db_reminder.taken_status = True
         db_reminder.taken_at = datetime.datetime.utcnow()
         db_reminder.adherence_pattern_flags = None # Clear missed status if taken
+        db_reminder.is_caregiver_notified = False
+        db_reminder.caregiver_notified_at = None
         db.commit()
         db.refresh(db_reminder)
     return db_reminder

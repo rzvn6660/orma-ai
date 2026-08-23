@@ -160,11 +160,11 @@ def get_linked_users(current_user: User = Depends(get_current_user), db: Session
     if current_user.role == "caregiver":
         rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.caregiver_id == current_user.id, CaregiverRelationship.status == "approved").all()
         users = db.query(User).filter(User.id.in_([r.elder_id for r in rels])).all()
-        return {"linked_users": [{"id": u.id, "name": u.name, "email": u.email} for u in users]}
-    elif current_user.role == "elderly":
+        return {"linked_users": [{"id": u.id, "name": u.name, "email": u.email, "phone": getattr(u, "phone", None)} for u in users]}
+    elif current_user.role in ["elderly", "elder", "patient"]:
         rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == current_user.id, CaregiverRelationship.status == "approved").all()
         users = db.query(User).filter(User.id.in_([r.caregiver_id for r in rels])).all()
-        return {"linked_caregivers": [{"id": u.id, "name": u.name, "email": u.email} for u in users]}
+        return {"linked_caregivers": [{"id": u.id, "name": u.name, "email": u.email, "phone": getattr(u, "phone", None), "relationship": "Primary Caregiver"} for u in users]}
     
     return {"linked_users": []}
 

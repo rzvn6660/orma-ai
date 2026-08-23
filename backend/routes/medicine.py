@@ -18,18 +18,33 @@ router = APIRouter()
 class SnoozePayload(BaseModel):
     minutes: Optional[int] = 10
 
+async def broadcast_medicine_event(db: Session, subject_id: str, event_data: dict):
+    """
+    Broadcasts real-time medicine updates to both the elder (subject) and all linked caregivers.
+    """
+    try:
+        # 1. Send to the subject (elder)
+        await manager.send_personal_message(event_data, subject_id)
+        
+        # 2. Send to all linked approved caregivers
+        rels = db.query(CaregiverRelationship).filter(
+            CaregiverRelationship.elder_id == subject_id, 
+            CaregiverRelationship.status == "approved"
+        ).all()
+        for rel in rels:
+            await manager.send_personal_message(event_data, rel.caregiver_id)
+    except Exception as e:
+        print(f"[WS BROADCAST WARN] Failed to broadcast medicine event: {e}")
+
 @router.post("/", response_model=medicine_service.ReminderResponse)
-def create_reminder(reminder: medicine_service.ReminderCreate, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
+async def create_reminder(reminder: medicine_service.ReminderCreate, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
     """
     Add a new medicine reminder (Supports Elder or Caregiver acting on behalf of Elder).
     """
-    # Authorization handled by PermissionManager in context if needed
-    # (Future iteration: check ctx['permissions'] for 'add_medicine')
-    
     actor = ctx['authenticated_user']
     subject = ctx['resolved_subject']
     
-    return medicine_service.create_reminder(
+    new_reminder = medicine_service.create_reminder(
         db=db, 
         reminder=reminder, 
         actor_id=actor.id, 
@@ -37,12 +52,42 @@ def create_reminder(reminder: medicine_service.ReminderCreate, db: Session = Dep
         role=actor.role
     )
 
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_created",
+        "medicine_id": new_reminder.id,
+        "medicine_name": new_reminder.medicine_name,
+        "reminder_time": new_reminder.reminder_time,
+        "message": f"New medicine {new_reminder.medicine_name} scheduled for {new_reminder.reminder_time}."
+    })
+    
+    return new_reminder
+
 @router.get("/pending-reminders")
-def get_pending_reminders():
+def get_pending_reminders(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
-    Get active reminders that have just triggered and clear the queue.
+    Get active reminders that have just triggered for the authenticated user, enforcing recipient preferences & relationships.
     """
-    return scheduler_service.get_and_clear_pending_reminders()
+    from services.notification_preference_service import get_user_notification_preferences
+    prefs = get_user_notification_preferences(db, current_user)
+    
+    if not prefs.medication_reminder_notifications:
+        return []
+        
+    reminders = scheduler_service.get_and_clear_pending_reminders()
+    if not reminders:
+        return []
+        
+    if current_user.role == 'elderly':
+        return [r for r in reminders if r.get('elder_id') == current_user.id or r.get('subject_id') == current_user.id or not r.get('elder_id')]
+    elif current_user.role == 'caregiver':
+        rels = db.query(CaregiverRelationship).filter(
+            CaregiverRelationship.caregiver_id == current_user.id,
+            CaregiverRelationship.status == "approved"
+        ).all()
+        approved_elder_ids = set(r.elder_id for r in rels)
+        return [r for r in reminders if (r.get('elder_id') in approved_elder_ids or r.get('subject_id') in approved_elder_ids)]
+        
+    return []
 
 @router.get("/", response_model=List[medicine_service.ReminderResponse])
 def read_reminders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
@@ -50,8 +95,6 @@ def read_reminders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     Retrieve medicine reminders for the active subject.
     """
     subject = ctx['resolved_subject']
-    # Subject could be the caregiver themselves (if they manage their own health) or an elderly they manage.
-    # We fetch specifically for the resolved subject. The ContextResolver already verified they have permission.
     return medicine_service.get_reminders_for_users(db, [subject["id"]], skip=skip, limit=limit)
 
 @router.put("/{id}/taken", response_model=medicine_service.ReminderResponse)
@@ -60,21 +103,16 @@ async def take_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depe
     Mark a medicine reminder as taken.
     """
     subject = ctx['resolved_subject']
-    # ensure it belongs to the subject
     reminder = medicine_service.mark_taken(db, reminder_id=id, subject_id=subject["id"])
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
         
-    # Notify caregivers
-    # Notify caregivers if subject is elder
-    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
-    for rel in rels:
-        await manager.send_personal_message({
-            "type": "medicine_taken",
-            "medicine_id": reminder.id,
-            "medicine_name": reminder.medicine_name,
-            "message": f"Medicine {reminder.medicine_name} was marked as taken."
-        }, rel.caregiver_id)
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_taken",
+        "medicine_id": reminder.id,
+        "medicine_name": reminder.medicine_name,
+        "message": f"Medicine {reminder.medicine_name} was marked as taken."
+    })
         
     return reminder
 
@@ -88,14 +126,12 @@ async def miss_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depe
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
         
-    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
-    for rel in rels:
-        await manager.send_personal_message({
-            "type": "medicine_missed",
-            "medicine_id": reminder.id,
-            "medicine_name": reminder.medicine_name,
-            "message": f"Medicine {reminder.medicine_name} was missed."
-        }, rel.caregiver_id)
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_missed",
+        "medicine_id": reminder.id,
+        "medicine_name": reminder.medicine_name,
+        "message": f"Medicine {reminder.medicine_name} was missed."
+    })
         
     return reminder
 
@@ -109,14 +145,12 @@ async def skip_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depe
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
         
-    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
-    for rel in rels:
-        await manager.send_personal_message({
-            "type": "medicine_skipped",
-            "medicine_id": reminder.id,
-            "medicine_name": reminder.medicine_name,
-            "message": f"Medicine {reminder.medicine_name} was skipped."
-        }, rel.caregiver_id)
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_skipped",
+        "medicine_id": reminder.id,
+        "medicine_name": reminder.medicine_name,
+        "message": f"Medicine {reminder.medicine_name} was skipped."
+    })
         
     return reminder
 
@@ -130,6 +164,15 @@ async def snooze_medicine(id: int, payload: Optional[SnoozePayload] = None, db: 
     reminder = medicine_service.snooze_reminder(db, reminder_id=id, subject_id=subject["id"], minutes=minutes)
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
+
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_snoozed",
+        "medicine_id": reminder.id,
+        "medicine_name": reminder.medicine_name,
+        "minutes": minutes,
+        "message": f"Medicine {reminder.medicine_name} was snoozed for {minutes} minutes."
+    })
+
     return reminder
 
 @router.put("/{id}", response_model=medicine_service.ReminderResponse)
@@ -142,14 +185,12 @@ async def update_medicine(id: int, reminder: medicine_service.ReminderCreate, db
     if not updated_reminder:
         raise HTTPException(status_code=404, detail="Reminder not found or unauthorized")
         
-    # Notify caregivers
-    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
-    for rel in rels:
-        await manager.send_personal_message({
-            "type": "medicine_updated",
-            "medicine_id": id,
-            "message": f"A medicine reminder was updated."
-        }, rel.caregiver_id)
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_updated",
+        "medicine_id": id,
+        "medicine_name": updated_reminder.medicine_name,
+        "message": f"Medicine {updated_reminder.medicine_name} was updated."
+    })
         
     return updated_reminder
 
@@ -163,18 +204,15 @@ async def delete_medicine(id: int, db: Session = Depends(get_db), ctx: dict = De
     if not success:
         raise HTTPException(status_code=404, detail="Reminder not found or unauthorized")
         
-    # Notify caregivers
-    rels = db.query(CaregiverRelationship).filter(CaregiverRelationship.elder_id == subject["id"], CaregiverRelationship.status == "approved").all()
-    for rel in rels:
-        await manager.send_personal_message({
-            "type": "medicine_deleted",
-            "medicine_id": id,
-            "message": "A medicine reminder was deleted."
-        }, rel.caregiver_id)
+    await broadcast_medicine_event(db, subject["id"], {
+        "type": "medicine_deleted",
+        "medicine_id": id,
+        "message": "A medicine reminder was deleted."
+    })
         
     return {"status": "success", "message": "Medicine deleted"}
 @router.post("/parse-voice")
-async def parse_voice_medicine(text: str = Form(...)):
+async def parse_voice_medicine(text: str = Form(...), current_user: User = Depends(get_current_user)):
     """
     Parses medicine details from a transcribed voice intent.
     Returns structured data for the user to verify.
@@ -186,7 +224,7 @@ async def parse_voice_medicine(text: str = Form(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/parse-ocr")
-async def parse_ocr_medicine(file: UploadFile = File(...)):
+async def parse_ocr_medicine(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
     """
     Extracts text via OCR and parses medicine details for human verification.
     """

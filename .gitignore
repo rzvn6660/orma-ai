@@ -9,27 +9,39 @@ __pycache__/
 *.py[cod]
 *$py.class
 .eslintcache
+.pytest_cache/
 
 # Build outputs
 build/
 dist/
 out/
-backend/temp_uploads/
 
-# Environment & Secrets
+# Environment & Secrets (Preserve .env.example templates)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
+*.key
 
-# Application specific
+# Application data & persistent storage
+data/
+uploads/
+backend/uploads/
+backend/temp_uploads/
 temp_audio/
 backend/temp_audio/
-backend/orma.db
-*.sqlite3
+temp_output.wav
+*.wav
+*.mp3
+*.webm
+
+# Database files
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+backend/orma.db
 
 # Logs
 logs/
@@ -45,3 +57,4 @@ npm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+

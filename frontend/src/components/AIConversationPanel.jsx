@@ -1,13 +1,24 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Play } from 'lucide-react';
+import { 
+  Volume2, 
+  Sparkles, 
+  ChevronRight, 
+  User,
+  Heart,
+  MessageSquarePlus,
+  RotateCcw,
+  VolumeX
+} from 'lucide-react';
 import { tts } from '../services/tts';
 import AICompanionOrb from './AICompanionOrb';
+import { isRTL } from '../utils/reminderLocalization';
 
 export default function AIConversationPanel({ 
   isListening, 
   isSpeaking, 
-  messages, 
+  onStopSpeaking,
+  messages = [], 
   isTranscribing, 
   isThinking,
   startRecording,
@@ -15,165 +26,185 @@ export default function AIConversationPanel({
   onClearConversation,
   onAskAgain,
   timeContext,
-  user
+  user,
+  externalError
 }) {
   const [replayingMessageId, setReplayingMessageId] = useState(null);
 
-  const handleReplay = (msgId, text) => {
+  const handleReplay = (msgId, text, langCode) => {
+    if (!text) return;
     setReplayingMessageId(msgId);
     tts.speak(text, {
+      langCode: langCode || 'en-IN',
       onEnd: () => setReplayingMessageId(null),
       onError: () => setReplayingMessageId(null)
     });
   };
 
   const handleSuggestionClick = (text) => {
-    if (onAskAgain) {
+    if (onAskAgain && text) {
       onAskAgain(text);
     }
   };
 
-  const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user');
-  const lastAiMsg = [...messages].reverse().find(m => m.sender === 'ai');
-  const showEmptyState = messages.length === 0;
+  const safeMessages = Array.isArray(messages) ? messages.filter(Boolean) : [];
+  const lastUserMsg = [...safeMessages].reverse().find(m => m && m.sender === 'user');
+  const lastAiMsg = [...safeMessages].reverse().find(m => m && m.sender === 'ai');
+  const hasDialogue = Boolean(lastUserMsg || lastAiMsg);
 
-  // Maximum 4 chips
-  const displaySuggestions = timeContext.suggestions.slice(0, 4);
+  const aiLangRtl = isRTL(lastAiMsg?.langCode);
+
+  const voiceCap = tts.getAvailableReminderVoice(lastAiMsg?.langCode || 'en-IN');
+  const showAiVoiceUnavailable = Boolean(
+    lastAiMsg &&
+    lastAiMsg.langCode &&
+    !lastAiMsg.langCode.toLowerCase().startsWith('en') &&
+    !voiceCap.voiceFound
+  );
+
+  // Default accessible prompt suggestions with strict array safety
+  const defaultSuggestions = [
+    "Did I take my morning medicine?",
+    "What medicines are due today?",
+    "When is my next appointment?",
+    "How am I doing this week?"
+  ];
+
+  const rawSuggestions = (timeContext && Array.isArray(timeContext.suggestions) && timeContext.suggestions.length > 0)
+    ? timeContext.suggestions
+    : defaultSuggestions;
+
+  const displaySuggestions = Array.isArray(rawSuggestions)
+    ? rawSuggestions.slice(0, 4)
+    : defaultSuggestions;
 
   return (
-    <div className="flex flex-col items-center justify-start relative w-full px-8 pt-8">
+    <div className="flex flex-col items-center justify-start relative w-full max-w-3xl mx-auto">
       
-      {/* Caregiver Subject Banner */}
-      {user?.role === 'caregiver' && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 bg-slate-800/80 border border-emerald-500/30 px-6 py-3 rounded-full flex items-center gap-3 shadow-lg"
-        >
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-          <span className="text-slate-300 text-sm font-medium">Currently Assisting:</span>
-          <select className="bg-transparent text-emerald-400 font-bold focus:outline-none border-none cursor-pointer">
-            <option value="john">John Thomas</option>
-            <option value="mary">Mary Thomas</option>
-          </select>
-        </motion.div>
-      )}
-
-      {/* Hero Component: Voice Orb */}
-      <motion.div 
-        layout
-        className="w-full flex justify-center items-center z-10"
-        initial={{ scale: 0.95 }}
-        animate={{ scale: 1, y: showEmptyState ? 0 : -40 }}
-        transition={{ type: "spring", stiffness: 80, damping: 20 }}
-      >
+      {/* 1. Hero Voice Interaction Center */}
+      <div className="w-full flex flex-col items-center justify-center pt-2 pb-6">
         <AICompanionOrb 
           onRecordingComplete={(blobUrl, blob) => {
             if (stopRecording) stopRecording(blobUrl, blob);
           }}
-          isProcessing={isTranscribing || isThinking}
-          isSpeaking={isSpeaking}
+          isProcessing={Boolean(isTranscribing || isThinking)}
+          isSpeaking={Boolean(isSpeaking)}
+          onStopSpeaking={onStopSpeaking}
+          externalError={externalError}
         />
-      </motion.div>
-      
-      {/* Tap to Speak Label */}
-      <AnimatePresence>
-        {showEmptyState && !isListening && !isTranscribing && !isThinking && !isSpeaking && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-6 text-slate-400 font-medium tracking-wide"
-          >
-            Tap to speak
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
 
-      {/* Empty State Suggestion Chips */}
+      {/* 2. Interactive Dialogue & Response Area */}
       <AnimatePresence mode="wait">
-        {showEmptyState && !isListening && !isTranscribing && !isThinking && !isSpeaking && (
-          <motion.div 
-            key="suggestions"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
-            className="flex flex-wrap justify-center items-center gap-3 max-w-2xl mt-6"
-          >
-            {displaySuggestions.map((suggestion, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="bg-slate-800/40 hover:bg-slate-700/60 backdrop-blur-xl border border-slate-600/30 text-slate-200 px-5 py-3 rounded-full text-[15px] font-medium transition-all duration-300 shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:scale-[1.03] active:scale-[0.98]"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Last Interaction Card */}
-      <AnimatePresence mode="wait">
-        {!showEmptyState && (
+        {hasDialogue && (
           <motion.div
-            key="last-interaction"
-            initial={{ opacity: 0, y: 40, filter: 'blur(8px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="w-full max-w-3xl orma-card p-8 mt-2 relative overflow-hidden rounded-[2.5rem] shadow-2xl border border-slate-700/40"
+            key="last-dialogue"
+            initial={{ opacity: 0, y: 15, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.25 }}
+            className="w-full orma-card p-5 sm:p-6 mb-6 border border-white/10 shadow-2xl relative overflow-hidden"
           >
-            {/* Status Indicator Gradient Line */}
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 opacity-60"></div>
-            
-            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-700/40">
-              <h3 className="text-slate-400 font-semibold tracking-widest uppercase text-xs">Last Interaction</h3>
-              <span className="text-slate-500 text-sm font-medium">{lastAiMsg?.time || lastUserMsg?.time}</span>
+            {/* Top Cyan Accent Line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 opacity-80" />
+
+            <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-white/10 text-xs">
+              <span className="font-extrabold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Recent Conversation
+              </span>
+              <span className="text-slate-400 font-mono text-[11px]">
+                {lastAiMsg?.time || lastUserMsg?.time || 'Just now'}
+              </span>
             </div>
 
-            <div className="flex flex-col gap-8">
+            <div className="space-y-3.5">
+              {/* User Query */}
               {lastUserMsg && (
-                <div className="flex justify-end">
-                  <div className="bg-blue-600/10 text-blue-100 border border-blue-500/20 px-6 py-4 rounded-[1.5rem] rounded-tr-md max-w-[85%] text-xl font-medium shadow-inner">
+                <div className="flex items-start justify-end gap-2.5">
+                  <div className="bg-blue-600/25 border border-blue-500/35 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm sm:text-base font-medium max-w-[85%] shadow-sm">
                     "{lastUserMsg.text}"
                   </div>
-                </div>
-              )}
-
-              {lastAiMsg && (
-                <div className="flex justify-start">
-                  <div className="bg-slate-800/60 text-white border border-slate-600/30 px-8 py-6 rounded-[1.5rem] rounded-tl-md max-w-[95%] text-2xl leading-relaxed shadow-lg font-light tracking-wide">
-                    {lastAiMsg.text}
+                  <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-md">
+                    <User className="w-3.5 h-3.5" />
                   </div>
                 </div>
               )}
 
-              {(isTranscribing || isThinking) && (
-                <div className="flex justify-start">
-                   <div className="bg-slate-800/40 text-slate-300 border border-slate-600/30 px-6 py-4 rounded-[1.5rem] rounded-tl-md max-w-[80%] flex items-center gap-4 shadow-lg">
-                     <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                     <span className="text-lg font-medium">{isTranscribing ? "Listening carefully..." : "Processing response..."}</span>
-                   </div>
+              {/* ORMA Care Answer */}
+              {lastAiMsg && (
+                <div className="flex items-start gap-2.5 pt-1">
+                  <div className="w-7 h-7 rounded-full bg-cyan-600/30 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0 shadow-md">
+                    <Heart className="w-3.5 h-3.5 text-cyan-300" />
+                  </div>
+
+                  <div className="flex-1 rounded-2xl bg-slate-950/70 border border-white/10 p-4 text-white">
+                    <p className={`text-sm sm:text-base leading-relaxed text-slate-100 font-medium whitespace-pre-wrap ${aiLangRtl ? 'rtl text-right' : 'ltr text-left'}`} dir={aiLangRtl ? 'rtl' : 'ltr'}>
+                      {lastAiMsg.text}
+                    </p>
+
+                    {showAiVoiceUnavailable && (
+                      <div className="mt-2.5 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 text-xs flex items-center gap-2">
+                        <VolumeX className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Spoken response isn't available on this device for this language. The answer is shown above.</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 mt-3 pt-2.5 border-t border-white/5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleReplay(lastAiMsg.id, lastAiMsg.text, lastAiMsg.langCode)}
+                        disabled={replayingMessageId === lastAiMsg.id}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-bold text-cyan-300 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>{replayingMessageId === lastAiMsg.id ? 'Playing audio...' : 'Replay Voice'}</span>
+                      </button>
+
+                      {onClearConversation && (
+                        <button
+                          type="button"
+                          onClick={onClearConversation}
+                          className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Clear Dialogue</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-
-            {/* Replay Action */}
-            {lastAiMsg && !isSpeaking && !isTranscribing && !isThinking && (
-              <div className="mt-8 pt-6 border-t border-slate-700/30 flex justify-end">
-                <button
-                  onClick={() => handleReplay(lastAiMsg.id, lastAiMsg.text)}
-                  disabled={replayingMessageId === lastAiMsg.id}
-                  className="flex items-center gap-3 text-cyan-400 hover:text-cyan-300 font-medium bg-cyan-500/10 hover:bg-cyan-500/20 px-6 py-3 rounded-full border border-cyan-500/20 transition-all duration-300 disabled:opacity-50 text-lg"
-                >
-                  <Play className={`w-5 h-5 ${replayingMessageId === lastAiMsg.id ? 'animate-pulse fill-current' : 'fill-current'}`} />
-                  {replayingMessageId === lastAiMsg.id ? 'Playing...' : 'Replay Audio'}
-                </button>
-              </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 3. ASK ORMA — Refined Healthcare Quick Prompts */}
+      <div className="w-full flex flex-col items-center gap-3 mt-1">
+        <div className="text-center">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-blue-400 block">
+            Ask ORMA
+          </span>
+          <span className="text-[11px] text-slate-400 mt-0.5">
+            Tap any question to speak with ORMA instantly
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+          {displaySuggestions.map((q, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleSuggestionClick(q)}
+              className="text-left p-3.5 bg-slate-900/70 hover:bg-blue-600/15 border border-white/10 hover:border-blue-500/30 rounded-2xl text-slate-200 hover:text-white text-xs sm:text-sm font-medium transition-all shadow-sm flex items-center justify-between group cursor-pointer"
+            >
+              <span className="leading-snug">{q}</span>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors shrink-0 ml-2" />
+            </button>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }

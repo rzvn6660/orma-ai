@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Pill, Edit3, Mic, Upload, Clock, CheckCircle2, AlertTriangle, Loader2, Calendar, FileText, Trash2, Camera, ShieldCheck, Check, ArrowLeft, ArrowRight, Activity, TrendingUp, MoreVertical, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { medicineApi, speechApi } from '../services/api';
-import ChartWrapper from '../components/ChartWrapper';
+import AdherenceTrendChart from '../components/analytics/AdherenceTrendChart';
 import ReminderTimePicker, { parseTimeString, formatTimeParts } from '../components/ReminderTimePicker';
 
 export default function MedicinesPage({ user }) {
@@ -360,22 +359,9 @@ export default function MedicinesPage({ user }) {
     missed_medicines
   };
 
-  const displayAdherence = {
-    consistency_score: 92,
-    weekly_trends: [
-      { day: 'Mon', adherence: 100 },
-      { day: 'Tue', adherence: 80 },
-      { day: 'Wed', adherence: 100 },
-      { day: 'Thu', adherence: 90 },
-      { day: 'Fri', adherence: 85 },
-      { day: 'Sat', adherence: 100 },
-      { day: 'Sun', adherence: 90 },
-    ]
-  };
-
-  const displayBehavior = {
-    confirmation_stats: { voice: 18, manual: 4, suspicious: 1, unverified: 0 }
-  };
+  const voice_confirmed = todayMedicines.filter(m => m.taken_status && m.confirmation_method === 'voice').length;
+  const manual_confirmed = todayMedicines.filter(m => m.taken_status && m.confirmation_method !== 'voice').length;
+  const unverified_reminders = todayMedicines.filter(m => !m.taken_status).length;
 
   // Render Dashboard
   if (!showAddMedicineWorkspace) {
@@ -438,35 +424,12 @@ export default function MedicinesPage({ user }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Weekly Trend Chart */}
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="orma-card p-6 lg:col-span-2">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <TrendingUp className="text-indigo-400 w-5 h-5" /> Weekly Adherence Trends
-              </h3>
-              <div className="px-3 py-1 bg-slate-800 rounded-full text-xs text-slate-300 border border-slate-700">
-                Avg Score: {displayAdherence.consistency_score}%
-              </div>
-            </div>
-            <div className="h-64 w-full">
-              <ChartWrapper>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={displayAdherence.weekly_trends}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                    <XAxis dataKey="day" stroke="#94a3b8" tick={{fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{fill: '#94a3b8'}} axisLine={false} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }}
-                      itemStyle={{ color: '#818cf8' }}
-                    />
-                    <Line type="monotone" dataKey="adherence" stroke="#818cf8" strokeWidth={3} dot={{r: 4, fill: '#818cf8', strokeWidth: 2}} activeDot={{r: 6}} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartWrapper>
-            </div>
-          </motion.div>
+          <div className="lg:col-span-2">
+            <AdherenceTrendChart adherenceData={null} />
+          </div>
 
           {/* Confirmation Monitoring */}
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="orma-card p-6">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="orma-card p-6 flex flex-col justify-between">
             <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <ShieldCheck className="text-emerald-400 w-5 h-5" /> Confirmation Methods
             </h3>
@@ -474,29 +437,23 @@ export default function MedicinesPage({ user }) {
               <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 flex justify-between items-center">
                 <div>
                   <p className="text-white font-medium">Voice Confirmed</p>
-                  <p className="text-xs text-slate-400">Via AI interaction</p>
+                  <p className="text-xs text-slate-400">Via ORMA companion</p>
                 </div>
-                <span className="text-xl font-bold text-purple-400">{displayBehavior.confirmation_stats.voice}</span>
+                <span className="text-xl font-bold text-cyan-400">{voice_confirmed}</span>
               </div>
               <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 flex justify-between items-center">
                 <div>
                   <p className="text-white font-medium">Manually Tapped</p>
                   <p className="text-xs text-slate-400">Dashboard confirmation</p>
                 </div>
-                <span className="text-xl font-bold text-blue-400">{displayBehavior.confirmation_stats.manual}</span>
-              </div>
-              <div className="bg-amber-900/10 p-4 rounded-xl border border-amber-500/20 flex justify-between items-center">
-                <div>
-                  <p className="text-amber-200 font-medium">Suspicious / Fast</p>
-                  <p className="text-xs text-amber-400/60">May require checking</p>
-                </div>
-                <span className="text-xl font-bold text-amber-400">{displayBehavior.confirmation_stats.suspicious}</span>
+                <span className="text-xl font-bold text-blue-400">{manual_confirmed}</span>
               </div>
               <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 flex justify-between items-center">
                 <div>
-                  <p className="text-white font-medium">Unverified Reminders</p>
+                  <p className="text-white font-medium">Unverified / Due</p>
+                  <p className="text-xs text-slate-400">Awaiting confirmation</p>
                 </div>
-                <span className="text-xl font-bold text-slate-400">{displayBehavior.confirmation_stats.unverified}</span>
+                <span className="text-xl font-bold text-slate-400">{unverified_reminders}</span>
               </div>
             </div>
           </motion.div>

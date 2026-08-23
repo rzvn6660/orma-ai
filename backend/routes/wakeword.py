@@ -17,6 +17,9 @@ async def test_wakeword(file: UploadFile = File(...)):
 @router.get("/status")
 async def get_wakeword_status():
     return {
+        "status": wakeword_service.mode,
+        "mode": wakeword_service.mode,
+        "model_name": wakeword_service.model_name,
         "model_path": wakeword_service.model_path,
         "file_exists": wakeword_service.file_exists,
         "engine_loaded": wakeword_service.is_ready,

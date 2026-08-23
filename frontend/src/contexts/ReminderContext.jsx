@@ -1,17 +1,87 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { medicineApi } from '../services/api';
+import { medicineApi, authApi } from '../services/api';
 
 export const ReminderContext = createContext();
 
+// Helper to generate a date string for the daily occurrence storage key
+const getTodayDateKey = () => {
+  const d = new Date();
+  return `orma_triggered_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Retrieve persisted triggered keys for today
+const getPersistedTriggeredKeys = () => {
+  try {
+    const key = getTodayDateKey();
+    const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+// Persist a newly triggered reminder occurrence
+const persistTriggeredKey = (occurrenceKey) => {
+  try {
+    const storageKey = getTodayDateKey();
+    const current = getPersistedTriggeredKeys();
+    current.add(String(occurrenceKey));
+    const serialized = JSON.stringify(Array.from(current));
+    sessionStorage.setItem(storageKey, serialized);
+    localStorage.setItem(storageKey, serialized);
+  } catch (e) {
+    console.warn('[ReminderContext] Storage write bypassed:', e);
+  }
+};
+
+// Remove a triggered reminder occurrence (e.g. on Snooze)
+const removePersistedTriggeredKey = (occurrenceKey) => {
+  try {
+    const storageKey = getTodayDateKey();
+    const current = getPersistedTriggeredKeys();
+    current.delete(String(occurrenceKey));
+    const serialized = JSON.stringify(Array.from(current));
+    sessionStorage.setItem(storageKey, serialized);
+    localStorage.setItem(storageKey, serialized);
+  } catch (e) {
+    console.warn('[ReminderContext] Storage remove bypassed:', e);
+  }
+};
+
 export function ReminderProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
   const [pendingReminders, setPendingReminders] = useState([]);
   const [nextReminder, setNextReminder] = useState(null);
   const [currentReminder, setCurrentReminder] = useState(null);
+  const [currentReminderGroup, setCurrentReminderGroup] = useState(null); // { scheduledTime: string, medicines: Array }
   const [timeline, setTimeline] = useState([]);
   
   const timerRef = useRef(null);
-  const triggeredSet = useRef(new Set()); // To track which medicine IDs we've already triggered today
+  // Initialized with persisted keys to prevent duplicate modals on browser refresh
+  const triggeredSet = useRef(getPersistedTriggeredKeys());
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUser = async () => {
+      try {
+        const u = await authApi.getMe();
+        if (isMounted && u) setCurrentUser(u);
+      } catch (_) {}
+    };
+    fetchUser();
+
+    const handleUserUpdate = (e) => {
+      if (e.detail) {
+        setCurrentUser(prev => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('orma_user_updated', handleUserUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('orma_user_updated', handleUserUpdate);
+    };
+  }, []);
 
   const loadReminders = async () => {
     try {
@@ -35,12 +105,12 @@ export function ReminderProvider({ children }) {
       
       const upcoming = pending.find(med => {
         const medTime = parseTime(med.reminder_time);
-        return medTime >= currentMinutes && !triggeredSet.current.has(med.id);
+        const occurrenceKey = `${med.id}_${med.reminder_time}`;
+        return medTime >= currentMinutes && !triggeredSet.current.has(occurrenceKey) && !triggeredSet.current.has(String(med.id));
       });
 
       if (upcoming) {
         setNextReminder(upcoming);
-        console.log(`[Reminder] Next reminder ${upcoming.reminder_time}`);
       } else {
         setNextReminder(null);
       }
@@ -56,7 +126,6 @@ export function ReminderProvider({ children }) {
 
   const parseTime = (timeStr) => {
     if (!timeStr) return 0;
-    // Handle "08:00 AM" or "14:00"
     const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
     if (!match) return 0;
     
@@ -72,6 +141,7 @@ export function ReminderProvider({ children }) {
 
   const pendingRef = useRef(pendingReminders);
   const currentRef = useRef(currentReminder);
+  const currentGroupRef = useRef(currentReminderGroup);
   
   useEffect(() => {
     pendingRef.current = pendingReminders;
@@ -81,20 +151,25 @@ export function ReminderProvider({ children }) {
     currentRef.current = currentReminder;
   }, [currentReminder]);
 
+  useEffect(() => {
+    currentGroupRef.current = currentReminderGroup;
+  }, [currentReminderGroup]);
+
+  const getOccurrenceKey = (med) => `${med.id}_${med.reminder_time}`;
+
   const checkScheduleWithRef = () => {
     if (pendingRef.current.length === 0) return;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // 1. Check for Missed (45 minutes past)
-    const missedReminders = pendingRef.current.filter(med => {
+    // 1. Check for Overdue (>30 minutes past scheduled time to match backend caregiver escalation window)
+    const overdueReminders = pendingRef.current.filter(med => {
       const medTime = parseTime(med.reminder_time);
-      return (currentMinutes - medTime) >= 45;
+      return (currentMinutes - medTime) >= 30;
     });
 
-    missedReminders.forEach(async (med) => {
-      console.log(`[Reminder] ${med.medicine_name} missed.`);
+    overdueReminders.forEach(async (med) => {
       addTimelineEvent(med.id, 'Missed', med.medicine_name);
       
       // Remove from pending optimistically
@@ -105,65 +180,113 @@ export function ReminderProvider({ children }) {
           await medicineApi.missMedicine(med.id);
         }
       } catch(e) {
-        // Rollback on miss failure is tricky since it's background, but we can restore it to pending.
         console.error('Failed to mark miss:', e);
         setPendingReminders(prev => [...prev, med].sort((a,b) => parseTime(a.reminder_time) - parseTime(b.reminder_time)));
       }
       
-      // If the modal was sitting open for this medicine, close it
+      // If the modal was sitting open for this medicine, update session
+      setCurrentReminderGroup(prev => {
+        if (!prev) return null;
+        const updated = prev.medicines.filter(p => p.id !== med.id);
+        if (updated.length === 0) return null;
+        return { ...prev, medicines: updated };
+      });
       setCurrentReminder(prev => prev?.id === med.id ? null : prev);
       
       window.dispatchEvent(new CustomEvent('orma:toast', { 
-        detail: { type: 'error', message: 'This medication reminder was missed.' } 
+        detail: { type: 'error', message: 'This medication reminder was marked as missed.' } 
       }));
       window.dispatchEvent(new CustomEvent('orma:remindersUpdated'));
     });
 
-    // If a modal is already active, don't pop another one.
-    // It will be processed via checkNextInQueue when the current one is closed.
-    if (currentRef.current) {
+    // If a modal or group session is already active, don't pop another one
+    if (currentRef.current || currentGroupRef.current) {
       return;
     }
 
-    // 2. Trigger Due Reminders
+    // Role & preference check: Do not pop normal scheduled reminder modal for caregiver unless preference is enabled (default OFF)
+    if (currentUser?.role === 'caregiver') {
+      const isEnabled = currentUser?.notification_preferences?.medication_reminder_notifications === true;
+      if (!isEnabled) return;
+    }
+
+    // 2. Trigger Due Reminders (Grouped by scheduled time)
     const dueReminder = pendingRef.current.find(med => {
-      if (triggeredSet.current.has(med.id)) return false;
+      const occKey = getOccurrenceKey(med);
+      if (triggeredSet.current.has(occKey) || triggeredSet.current.has(String(med.id))) return false;
       const medTime = parseTime(med.reminder_time);
-      // Wait, ensure we only trigger if it's NOT missed (already handled above but due to state delays we double check)
-      return currentMinutes >= medTime && (currentMinutes - medTime) < 45;
+      return currentMinutes >= medTime && (currentMinutes - medTime) < 30;
     });
 
     if (dueReminder) {
-      triggerReminder(dueReminder);
+      // Find ALL pending medicines sharing the exact same reminder_time
+      const dueGroup = pendingRef.current.filter(med => {
+        const occKey = getOccurrenceKey(med);
+        if (triggeredSet.current.has(occKey) || triggeredSet.current.has(String(med.id))) return false;
+        return med.reminder_time === dueReminder.reminder_time;
+      });
+
+      triggerReminderGroup(dueGroup);
     }
   };
 
-  const triggerReminder = (reminder) => {
-    console.log('[Reminder] Reminder triggered');
-    setCurrentReminder(reminder);
-    triggeredSet.current.add(reminder.id);
-    addTimelineEvent(reminder.id, 'Reminder Triggered', reminder.medicine_name);
+  const triggerReminderGroup = (dueGroup) => {
+    if (!dueGroup || dueGroup.length === 0) return;
+
+    // Persist occurrence keys for all medicines in this group immediately
+    dueGroup.forEach(med => {
+      const occKey = getOccurrenceKey(med);
+      persistTriggeredKey(occKey);
+      triggeredSet.current.add(occKey);
+
+      addTimelineEvent(med.id, 'Reminder Triggered', med.medicine_name);
+    });
+
+    const scheduledTime = dueGroup[0].reminder_time;
+    const groupSession = {
+      sessionId: `session_${scheduledTime.replace(/\s+/g, '')}_${getTodayDateKey()}`,
+      scheduledTime,
+      medicines: dueGroup.map(med => ({
+        ...med,
+        status: 'pending' // 'pending' | 'taken' | 'snoozed' | 'skipped'
+      }))
+    };
+
+    setCurrentReminderGroup(groupSession);
+    setCurrentReminder(dueGroup[0]);
     loadReminders();
   };
 
+  const triggerReminder = (reminder) => {
+    triggerReminderGroup([reminder]);
+  };
+
   const clearReminder = () => {
+    setCurrentReminderGroup(null);
     setCurrentReminder(null);
     checkNextInQueue();
   };
 
   const checkNextInQueue = () => {
-    // Check queue slightly after closing modal
     setTimeout(() => {
       checkScheduleWithRef();
-    }, 1500);
+    }, 1200);
   };
 
   const markTaken = async (reminder) => {
-    setCurrentReminder(null);
+    const occKey = getOccurrenceKey(reminder);
+    persistTriggeredKey(occKey);
     addTimelineEvent(reminder.id, 'Taken', reminder.medicine_name);
     
-    // Optimistically remove
+    // Optimistically remove from pendingReminders
     setPendingReminders(prev => prev.filter(med => med.id !== reminder.id));
+
+    // Update status in active group session
+    setCurrentReminderGroup(prev => {
+      if (!prev) return null;
+      const updatedMeds = prev.medicines.map(m => m.id === reminder.id ? { ...m, status: 'taken' } : m);
+      return { ...prev, medicines: updatedMeds };
+    });
     
     try {
       await medicineApi.takeMedicine(reminder.id);
@@ -171,18 +294,18 @@ export function ReminderProvider({ children }) {
       console.error('Failed to mark taken:', err);
       // Rollback
       setPendingReminders(prev => [...prev, reminder].sort((a,b) => parseTime(a.reminder_time) - parseTime(b.reminder_time)));
-      triggeredSet.current.delete(reminder.id);
+      removePersistedTriggeredKey(occKey);
+      triggeredSet.current.delete(occKey);
       window.dispatchEvent(new CustomEvent('orma:toast', { 
         detail: { type: 'error', message: 'Unable to connect. Please try again.' } 
       }));
     }
     
     window.dispatchEvent(new CustomEvent('orma:remindersUpdated'));
-    checkNextInQueue();
   };
 
   const snoozeReminder = async (reminder, minutes = 10) => {
-    setCurrentReminder(null);
+    const oldOccKey = getOccurrenceKey(reminder);
     addTimelineEvent(reminder.id, `Snoozed (${minutes}m)`, reminder.medicine_name);
     
     // Reschedule
@@ -190,16 +313,18 @@ export function ReminderProvider({ children }) {
     now.setMinutes(now.getMinutes() + minutes);
     const newTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     
-    triggeredSet.current.delete(reminder.id);
+    // Remove old occurrence key so new snooze time triggers cleanly
+    removePersistedTriggeredKey(oldOccKey);
+    triggeredSet.current.delete(oldOccKey);
     
-    // Optimistic update
-    const updatedPending = pendingReminders.map(med => {
-      if (med.id === reminder.id) {
-        return { ...med, reminder_time: newTime };
-      }
-      return med;
+    // Optimistic update in group session
+    setCurrentReminderGroup(prev => {
+      if (!prev) return null;
+      const updatedMeds = prev.medicines.map(m => m.id === reminder.id ? { ...m, status: 'snoozed', reminder_time: newTime } : m);
+      return { ...prev, medicines: updatedMeds };
     });
-    setPendingReminders(updatedPending);
+
+    setPendingReminders(prev => prev.map(med => med.id === reminder.id ? { ...med, reminder_time: newTime } : med));
     
     try {
       await medicineApi.snoozeMedicine(reminder.id, minutes);
@@ -210,18 +335,26 @@ export function ReminderProvider({ children }) {
         const reverted = prev.filter(p => p.id !== reminder.id);
         return [...reverted, reminder].sort((a,b) => parseTime(a.reminder_time) - parseTime(b.reminder_time));
       });
+      persistTriggeredKey(oldOccKey);
+      triggeredSet.current.add(oldOccKey);
       window.dispatchEvent(new CustomEvent('orma:toast', { 
         detail: { type: 'error', message: 'Unable to connect. Please try again.' } 
       }));
     }
     window.dispatchEvent(new CustomEvent('orma:remindersUpdated'));
-    checkNextInQueue();
   };
 
   const skipReminder = async (reminder) => {
-    setCurrentReminder(null);
+    const occKey = getOccurrenceKey(reminder);
+    persistTriggeredKey(occKey);
     addTimelineEvent(reminder.id, 'Skipped', reminder.medicine_name);
     
+    setCurrentReminderGroup(prev => {
+      if (!prev) return null;
+      const updatedMeds = prev.medicines.map(m => m.id === reminder.id ? { ...m, status: 'skipped' } : m);
+      return { ...prev, medicines: updatedMeds };
+    });
+
     setPendingReminders(prev => prev.filter(med => med.id !== reminder.id));
     
     try {
@@ -230,27 +363,78 @@ export function ReminderProvider({ children }) {
       console.error('Failed to skip:', err);
       // Rollback
       setPendingReminders(prev => [...prev, reminder].sort((a,b) => parseTime(a.reminder_time) - parseTime(b.reminder_time)));
-      triggeredSet.current.delete(reminder.id);
+      removePersistedTriggeredKey(occKey);
+      triggeredSet.current.delete(occKey);
       window.dispatchEvent(new CustomEvent('orma:toast', { 
         detail: { type: 'error', message: 'Unable to connect. Please try again.' } 
       }));
     }
     
     window.dispatchEvent(new CustomEvent('orma:remindersUpdated'));
-    checkNextInQueue();
   };
 
   useEffect(() => {
-    console.log('[Reminder] Scheduler started');
-    
+    // 1. Synchronize triggered occurrences across multiple tabs
+    const handleStorage = (e) => {
+      if (e.key === getTodayDateKey()) {
+        triggeredSet.current = getPersistedTriggeredKeys();
+        loadReminders();
+      }
+    };
+
+    // 2. Custom window events for instant local/WS update
+    const handleRemindersUpdate = () => {
+      loadReminders();
+    };
+
+    const handleWsMessage = (e) => {
+      const msg = e.detail;
+      if (!msg || !msg.type) return;
+      if ([
+        'medicine_created', 
+        'medicine_updated', 
+        'medicine_deleted', 
+        'medicine_taken', 
+        'medicine_snoozed', 
+        'medicine_skipped', 
+        'medicine_missed', 
+        'reminders_updated'
+      ].includes(msg.type)) {
+        loadReminders();
+      }
+    };
+
+    // 3. Tab visibility / Sleep / Focus Recovery
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        triggeredSet.current = getPersistedTriggeredKeys();
+        loadReminders();
+        checkScheduleWithRef();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('orma:remindersUpdated', handleRemindersUpdate);
+    window.addEventListener('medicationUpdated', handleRemindersUpdate);
+    window.addEventListener('orma_websocket_message', handleWsMessage);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    window.addEventListener('online', handleVisibilityChange);
+
     loadReminders();
 
     timerRef.current = setInterval(() => {
       checkScheduleWithRef();
-    }, 30000);
+    }, 15000);
 
     return () => {
-      console.log('[Reminder] Scheduler stopped');
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('orma:remindersUpdated', handleRemindersUpdate);
+      window.removeEventListener('medicationUpdated', handleRemindersUpdate);
+      window.removeEventListener('orma_websocket_message', handleWsMessage);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      window.removeEventListener('online', handleVisibilityChange);
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -260,10 +444,12 @@ export function ReminderProvider({ children }) {
   return (
     <ReminderContext.Provider value={{
       currentReminder,
+      currentReminderGroup,
       nextReminder,
       pendingReminders,
       timeline,
       triggerReminder,
+      triggerReminderGroup,
       clearReminder,
       markTaken,
       snoozeReminder,

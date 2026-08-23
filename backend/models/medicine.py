@@ -26,5 +26,7 @@ class MedicineReminder(Base, IdentityMixin):
     reminder_triggered_at = Column(DateTime, nullable=True)
     confirmation_time_difference = Column(Integer, nullable=True) # Seconds between trigger and confirm
     adherence_pattern_flags = Column(String, nullable=True) # 'suspiciously_fast', 'delayed', etc.
+    is_caregiver_notified = Column(Boolean, default=False)
+    caregiver_notified_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

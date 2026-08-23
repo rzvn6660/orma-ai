@@ -2,7 +2,14 @@ import jwt
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 
-SECRET_KEY = "orma-ai-secure-healthcare-key-v1"
+import os
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", os.getenv("SECRET_KEY", "orma-ai-secure-healthcare-key-v1"))
+env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
+if env_mode == "production" and (SECRET_KEY == "orma-ai-secure-healthcare-key-v1" or len(SECRET_KEY) < 32):
+    import logging
+    logging.getLogger(__name__).critical("[SECURITY CRITICAL] Production deployment detected but JWT_SECRET_KEY is missing, weak (<32 chars), or using the default key! Set a strong random JWT_SECRET_KEY in production.")
+    raise ValueError("Production mode requires a secure JWT_SECRET_KEY with at least 32 characters in environment variables.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 1 week
 

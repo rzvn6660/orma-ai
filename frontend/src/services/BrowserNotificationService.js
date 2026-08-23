@@ -1,3 +1,6 @@
+import { getReminderStrings } from '../utils/reminderLocalization';
+import { DEFAULT_REMINDER_LANGUAGE } from '../config/reminderLanguages';
+
 export const BrowserNotificationService = {
   isEnabled: () => localStorage.getItem('orma_notification_enabled') !== 'false',
   
@@ -20,9 +23,24 @@ export const BrowserNotificationService = {
     }
   },
 
-  notify: async (medicine) => {
+  notify: async (medicine, user = null) => {
     if (!BrowserNotificationService.isEnabled()) return;
     if (!('Notification' in window)) return;
+
+    // Role & preference enforcement
+    if (user) {
+      const prefs = user.notification_preferences;
+      if (user.role === 'caregiver') {
+        // Default caregiver value is OFF unless explicitly enabled
+        if (!prefs || prefs.medication_reminder_notifications !== true) {
+          return;
+        }
+      } else if (user.role === 'elderly') {
+        if (prefs && prefs.medication_reminder_notifications === false) {
+          return;
+        }
+      }
+    }
 
     if (Notification.permission === 'default') {
        await BrowserNotificationService.requestPermissionOnce();
@@ -31,8 +49,21 @@ export const BrowserNotificationService = {
     if (Notification.permission !== 'granted') return;
 
     try {
-      const notification = new Notification('💊 Medication Reminder', {
-        body: `Time to take ${medicine.medicine_name} ${medicine.dosage}.`,
+      const prefs = user?.notification_preferences || {};
+      const langCode = prefs.reminder_language || localStorage.getItem('orma_reminder_language') || DEFAULT_REMINDER_LANGUAGE;
+      const strings = getReminderStrings(langCode);
+
+      const title = strings.browserTitle || '💊 Medication Reminder';
+      const medName = medicine.medicine_name || medicine.title || 'Medicine';
+      const dosage = medicine.dosage || medicine.description || '';
+      
+      const body = (strings.browserBody || "It's time to take {medName} {dosage}.")
+        .replace('{medName}', medName)
+        .replace('{dosage}', dosage)
+        .trim();
+
+      const notification = new Notification(title, {
+        body,
         icon: '/logo-transparent.png',
         requireInteraction: true
       });

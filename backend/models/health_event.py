@@ -52,5 +52,7 @@ class HealthEvent(Base, IdentityMixin):
     reminder_triggered_at = Column(DateTime, nullable=True)
     confirmation_time_difference = Column(Integer, nullable=True)
     adherence_pattern_flags = Column(String, nullable=True)
+    is_caregiver_notified = Column(Boolean, default=False)
+    caregiver_notified_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

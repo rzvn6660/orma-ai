@@ -39,9 +39,9 @@ export function useWakeWord(onWakeWordDetected) {
     try {
       if (wsRef.current?.readyState === WebSocket.OPEN) return;
       
-      const wsUrl = import.meta.env.VITE_API_BASE_URL 
-        ? import.meta.env.VITE_API_BASE_URL.replace('http', 'ws') + '/api/wakeword/ws'
-        : 'ws://localhost:8000/api/wakeword/ws';
+      const baseApi = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+      const wsPrefix = baseApi.startsWith('https') ? baseApi.replace(/^https/, 'wss') : baseApi.replace(/^http/, 'ws');
+      const wsUrl = `${wsPrefix}/api/wakeword/ws`;
         
       wsRef.current = new WebSocket(wsUrl);
       

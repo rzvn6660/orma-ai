@@ -93,26 +93,19 @@ class EntityExtractor:
 
     async def _call_llm_json(self, prompt: str) -> Dict[str, Any]:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "http://localhost:11434/api/generate",
-                    json={
-                        "model": "llama3",
-                        "prompt": prompt,
-                        "stream": False,
-                        "format": "json"
-                    },
-                    timeout=15.0
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    raw_json = data.get("response", "{}")
-                    parsed = json.loads(raw_json)
+            from llm.ai_manager import ai_manager
+            res = await ai_manager.generate(prompt=prompt, max_tokens=150)
+            text_resp = res.get("text", "")
+            if text_resp:
+                start = text_resp.find('{')
+                end = text_resp.rfind('}')
+                if start != -1 and end != -1:
+                    json_str = text_resp[start:end+1]
+                    parsed = json.loads(json_str)
                     logger.info(f"[EntityExtractor] Extracted: {parsed}")
                     return parsed
         except Exception as e:
-            logger.warning(f"[EntityExtractor] Extraction failed: {e}")
+            logger.warning(f"[EntityExtractor] Extraction warning: {e}")
         
         return {}
 

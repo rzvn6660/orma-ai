@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mic, Upload, Edit3, Pill, CheckCircle2, AlertTriangle, AlertCircle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, Lock } from 'lucide-react';
 import { medicineApi, speechApi } from '../services/api';
 import ReminderTimePicker from './ReminderTimePicker';
+import MedicineUploadDropzone from './ui/MedicineUploadDropzone';
 
 export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
   const [mode, setMode] = useState('select'); // select, manual, voice, ocr, verify
@@ -157,14 +158,10 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleDirectFileSelected = async (file) => {
     if (!file) return;
-    
     setLoading(true);
     setError(null);
-    setMode('ocr');
-    
     try {
       const parseResult = await medicineApi.parseOcr(file);
       if (parseResult.status === 'success') {
@@ -173,10 +170,10 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
           ...prev,
           medicine_name: data.medicine_name || '',
           dosage: data.dosage || '',
-          timing: data.timing || '',
+          timings: data.timing ? [data.timing] : prev.timings,
           purpose: data.purpose || '',
           suggestion: data.suggestion,
-          confidence: data.confidence
+          confidence: data.confidence || 100
         }));
         setMode('verify');
       } else {
@@ -184,9 +181,15 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
       }
     } catch (err) {
       setError(err.message || "OCR processing failed.");
-      setMode('select');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleDirectFileSelected(file);
     }
   };
 
@@ -304,8 +307,8 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
 
                   {/* Card 3: Scan */}
                   <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex flex-col items-center text-center p-8 lg:p-10 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-purple-500/50 rounded-3xl transition-all duration-300 group min-h-[280px]"
+                    onClick={() => setMode('ocr')}
+                    className="flex flex-col items-center text-center p-8 lg:p-10 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 hover:border-purple-500/50 rounded-3xl transition-all duration-300 group min-h-[280px] cursor-pointer"
                   >
                     <div className="w-20 h-20 rounded-full bg-purple-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform relative">
                       <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-lg group-hover:blur-xl transition-all"></div>
@@ -319,7 +322,6 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
                       <ArrowRight className="w-6 h-6 text-slate-400 group-hover:text-white" />
                     </div>
                   </button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileUpload} />
                 </div>
 
                 {/* Trust Badge */}
@@ -340,7 +342,7 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
                 </div>
 
                 {/* Cancel Link */}
-                <button onClick={handleClose} className="text-slate-400 hover:text-white text-lg font-medium transition-colors">
+                <button onClick={handleClose} className="text-slate-400 hover:text-white text-lg font-medium transition-colors cursor-pointer">
                   Cancel
                 </button>
 
@@ -363,7 +365,7 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
                       <>
                         <button 
                           onClick={recording ? stopVoiceRecording : startVoiceRecording}
-                          className={`w-40 h-40 rounded-[3rem] flex items-center justify-center transition-all shadow-2xl shrink-0 ${
+                          className={`w-40 h-40 rounded-[3rem] flex items-center justify-center transition-all shadow-2xl shrink-0 cursor-pointer ${
                             recording 
                               ? 'bg-red-500 text-white shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse scale-105' 
                               : 'bg-emerald-600 text-white hover:bg-emerald-500 hover:scale-105'
@@ -382,13 +384,23 @@ export default function AddMedicineModal({ isOpen, onClose, onAdded }) {
                   </div>
                 )}
 
-                {/* OCR Loading Mode */}
-                {mode === 'ocr' && loading && (
-                   <div className="flex flex-col items-center text-center py-16">
-                     <Loader2 className="w-16 h-16 text-purple-400 animate-spin mb-6" />
-                     <h3 className="text-2xl font-bold text-white mb-4">Scanning Prescription...</h3>
-                     <p className="text-xl text-slate-400">Please wait a moment.</p>
-                   </div>
+                {/* OCR Mode with Polished Dropzone */}
+                {mode === 'ocr' && (
+                  <div className="py-6 px-2">
+                    <MedicineUploadDropzone 
+                      onFileSelected={handleDirectFileSelected} 
+                      isLoading={loading} 
+                    />
+                    <div className="mt-6 text-center">
+                      <button 
+                        type="button"
+                        onClick={() => setMode('select')}
+                        className="text-slate-400 hover:text-white text-sm font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <ArrowLeft className="w-4 h-4" /> Choose Different Entry Method
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Manual / Verify Form */}

@@ -23,11 +23,46 @@ export default function TimeAwareDashboard({ user, timeContext }) {
 
   useEffect(() => {
     fetchMedicines();
-    const interval = setInterval(fetchMedicines, 60000);
+
+    const handleWsMessage = (e) => {
+      const msg = e.detail;
+      if (!msg || !msg.type) return;
+      if ([
+        'medicine_created', 
+        'medicine_updated', 
+        'medicine_deleted', 
+        'medicine_taken', 
+        'medicine_snoozed', 
+        'medicine_skipped', 
+        'medicine_missed', 
+        'reminders_updated'
+      ].includes(msg.type)) {
+        fetchMedicines();
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMedicines();
+      }
+    };
+
+    const interval = setInterval(fetchMedicines, 30000);
     window.addEventListener('medicationUpdated', fetchMedicines);
+    window.addEventListener('orma:remindersUpdated', fetchMedicines);
+    window.addEventListener('orma_websocket_message', handleWsMessage);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    window.addEventListener('online', fetchMedicines);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('medicationUpdated', fetchMedicines);
+      window.removeEventListener('orma:remindersUpdated', fetchMedicines);
+      window.removeEventListener('orma_websocket_message', handleWsMessage);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('online', fetchMedicines);
     };
   }, []);
 

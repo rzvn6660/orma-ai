@@ -173,45 +173,17 @@ class ConversationService:
 
         prompt = f"{system_prompt}\n\nUser: {text}\nOrma:"
 
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "http://localhost:11434/api/generate",
-                    json={
-                        "model": "llama3",
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {
-                            "num_predict": 40
-                        }
-                    },
-                    timeout=15.0
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    reply = data.get("response", "").strip()
-                    
-                    # Memory save prepared for future
-                    # memory_service.add_memory(...)
-                    
-                    # Save to short term session
-                    self.session_manager.add_message(user_id, "user", text)
-                    self.session_manager.add_message(user_id, "assistant", reply)
-                    
-                    return reply
-                else:
-                    reply = self._fallback_mock_response(text, final_language, memory_context)
-                    self.session_manager.add_message(user_id, "user", text)
-                    self.session_manager.add_message(user_id, "assistant", reply)
-                    return reply
-                    
-        except httpx.RequestError:
-            print("Ollama is not running or accessible. Falling back to mock responses.")
-            reply = self._fallback_mock_response(text, language, memory_context)
-            self.session_manager.add_message(user_id, "user", text)
-            self.session_manager.add_message(user_id, "assistant", reply)
-            return reply
+        from llm.ai_manager import ai_manager
+        ai_res = await ai_manager.generate(
+            prompt=f"User: {text}\nOrma:",
+            system_prompt=system_prompt,
+            max_tokens=60,
+            temperature=0.3
+        )
+        reply = ai_res.get("text", "")
+        self.session_manager.add_message(user_id, "user", text)
+        self.session_manager.add_message(user_id, "assistant", reply)
+        return reply
 
     def _fallback_mock_response(self, text: str, final_language: str, memory_context: str = "") -> str:
         text_lower = text.lower()

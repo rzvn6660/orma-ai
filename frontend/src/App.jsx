@@ -59,6 +59,14 @@ export default function App() {
       setLoading(false);
     };
     checkAuth();
+
+    const handleUserUpdated = (e) => {
+      if (e.detail) {
+        setUser(prev => ({ ...prev, ...e.detail }));
+      }
+    };
+    window.addEventListener('orma_user_updated', handleUserUpdated);
+    return () => window.removeEventListener('orma_user_updated', handleUserUpdated);
   }, []);
 
   const handleLogin = async (userData) => {
@@ -96,6 +104,16 @@ export default function App() {
   }
 
   if (!user) {
+    // Deep-link: /reset-password?token=... opened from email — show AuthFlow directly
+    if (location.pathname === '/verify-email') {
+      return <AuthFlow onLogin={handleLogin} onBack={() => navigate('/')} initialView="verify-email" />;
+    }
+    if (location.pathname === '/reset-password') {
+      return <AuthFlow onLogin={handleLogin} onBack={() => navigate('/')} initialView="reset-password" />;
+    }
+    if (location.pathname === '/forgot-password') {
+      return <AuthFlow onLogin={handleLogin} onBack={() => navigate('/')} initialView="forgot-password" />;
+    }
     if (showAuth) {
       return <AuthFlow onLogin={handleLogin} onBack={() => setShowAuth(false)} />;
     }
@@ -120,10 +138,13 @@ export default function App() {
           <Route path="/emergency" element={<Dashboard user={user} currentView="emergency" onViewChange={handleViewChange} onLogout={handleLogout} />} />
           <Route path="/settings" element={<Dashboard user={user} currentView="settings" onViewChange={handleViewChange} onLogout={handleLogout} />} />
           
+          <Route path="/calendar" element={<Dashboard user={user} currentView="calendar" onViewChange={handleViewChange} onLogout={handleLogout} />} />
+          <Route path="/schedule" element={<Navigate to="/calendar" replace />} />
+          
           {/* Backward Compatibility Redirects */}
           <Route path="/medications" element={<Navigate to="/my-health?tab=medicines" replace />} />
           <Route path="/medicines" element={<Navigate to="/my-health?tab=medicines" replace />} />
-          <Route path="/planner" element={<Navigate to="/my-health?tab=planner" replace />} />
+          <Route path="/planner" element={<Navigate to="/calendar" replace />} />
           <Route path="/records" element={<Navigate to="/my-health?tab=records" replace />} />
           <Route path="/vitals" element={<Navigate to="/my-health?tab=vitals" replace />} />
           <Route path="/health" element={<Navigate to="/my-health?tab=overview" replace />} />

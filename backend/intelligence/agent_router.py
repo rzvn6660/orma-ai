@@ -13,7 +13,7 @@ class AgentRouter:
     def __init__(self):
         pass
 
-    def _build_explainable_payload(self, status: str, action: str, data: Any, reason: str, confidence: float, memory_updates: list = None, follow_up: str = None) -> Dict[str, Any]:
+    def _build_explainable_payload(self, status: str, action: str, data: Any, reason: str, confidence: float, memory_updates: list = None, follow_up: str = None, suggested_follow_up: str = None) -> Dict[str, Any]:
         """Builds the standardized explainable response payload."""
         return {
             "status": status,
@@ -24,51 +24,79 @@ class AgentRouter:
                 "reason": reason,
                 "confidence": confidence,
                 "memory_updates": memory_updates or [],
-                "suggested_follow_up": follow_up
+                "suggested_follow_up": suggested_follow_up or follow_up
             }
         }
 
-    async def route(self, intent: str, entities: Dict[str, Any], user_id: str, db: Session) -> Optional[Dict[str, Any]]:
+    async def route(self, intent: str, entities: Dict[str, Any], user_id: str, db: Session, raw_text: str = "") -> Optional[Dict[str, Any]]:
         """
         Routes the request to the appropriate domain service and returns a standardized response dict.
         """
         logger.info(f"[AgentRouter] Routing intent '{intent}' for user {user_id}")
         
-        if intent == "Appointment":
-            return await self._route_to_health_planner(intent, entities, user_id, db, event_type="doctor_appointment")
-            
-        elif intent == "Medicine":
+        low_text = raw_text.lower() if raw_text else ""
+        is_query = any(w in low_text for w in ["did i", "do i", "what", "which", "when", "have i", "any", "?", "status", "due", "take", "schedule", "pending", "today", "how did"])
+        
+        medication_chat_intents = [
+            "MEDICATION_SCHEDULE", "MEDICATION_STATUS", "MEDICATION_SUMMARY", 
+            "MEDICATION_INFORMATION", "Medicine"
+        ]
+
+        if intent in medication_chat_intents:
+            if is_query or entities.get("action") != "create":
+                return self._build_explainable_payload(
+                    status="success", action="chat", data=None,
+                    reason=f"Medication intent '{intent}' routed to conversational chat coordinator.", confidence=0.95
+                )
             return await self._route_to_health_planner(intent, entities, user_id, db, event_type="medicine")
             
+        elif intent == "Appointment":
+            if is_query or entities.get("action") != "create":
+                return self._build_explainable_payload(
+                    status="success", action="chat", data=None,
+                    reason="Appointment query routed to conversational chat coordinator.", confidence=0.95
+                )
+            return await self._route_to_health_planner(intent, entities, user_id, db, event_type="doctor_appointment")
+            
         elif intent == "Reminder":
+            if is_query or entities.get("action") != "create":
+                return self._build_explainable_payload(
+                    status="success", action="chat", data=None,
+                    reason="Reminder query routed to conversational chat coordinator.", confidence=0.95
+                )
             return await self._route_to_health_planner(intent, entities, user_id, db, event_type="custom_reminder")
             
         elif intent == "Emergency":
             return await self._route_to_emergency(entities, user_id, db)
             
-        elif intent == "GeneralChat" or intent == "Unknown":
+        elif intent in ["DOCUMENT_QUERY", "GREETING", "GENERAL_CONVERSATION", "Memory", "Unknown", "Settings", "Caregiver", "HealthRecord"]:
             return self._build_explainable_payload(
                 status="success", action="chat", data=None,
-                reason="Standard conversation routed to chat module.", confidence=0.9
+                reason="Document query or conversational interaction routed to chat module.", confidence=0.9
             )
             
         else:
             logger.warning(f"[AgentRouter] No explicit routing defined for intent '{intent}'. Returning default.")
             return self._build_explainable_payload(
-                status="ignored", action="none", data=None,
-                reason=f"No agent configured for intent {intent}.", confidence=1.0
+                status="success", action="chat", data=None,
+                reason=f"Intent {intent} routed to default chat coordinator.", confidence=0.8
             )
 
     async def _route_to_health_planner(self, intent: str, entities: Dict[str, Any], user_id: str, db: Session, event_type: str) -> Dict[str, Any]:
-        from services.health_planner_service import HealthPlannerService
-        from schemas.health_event import HealthEventCreate
+        from services.health_planner_service import create_health_event, HealthEventCreate
+        from models.health_event import HealthEventType
         
         title = entities.get("doctor_name") or entities.get("medicine_name") or entities.get("title") or "Health Event"
         event_date = entities.get("date")
         reminder_time = entities.get("time") or "09:00 AM"
         
+        try:
+            enum_type = HealthEventType(event_type)
+        except Exception:
+            enum_type = HealthEventType.MEDICINE
+
         event_data = HealthEventCreate(
-            event_type=event_type,
+            event_type=enum_type,
             title=title,
             description=f"Auto-scheduled from {intent} request",
             reminder_time=reminder_time,
@@ -77,10 +105,15 @@ class AgentRouter:
             timezone="UTC"
         )
         
-        service = HealthPlannerService()
         try:
-            elder_id = int(user_id) if str(user_id).isdigit() else 1
-            new_event = service.create_health_event(db, elder_id, event_data)
+            subject_id = str(user_id)
+            new_event = create_health_event(
+                db=db,
+                event=event_data,
+                actor_id=subject_id,
+                subject_id=subject_id,
+                role="elderly"
+            )
             logger.info(f"[AgentRouter] Successfully routed to HealthPlannerService. Created ID: {new_event.id}")
             
             return self._build_explainable_payload(
@@ -100,10 +133,10 @@ class AgentRouter:
     async def _route_to_emergency(self, entities: Dict[str, Any], user_id: str, db: Session) -> Dict[str, Any]:
         from services.notification_service import dispatch_notification
         try:
-            elder_id = int(user_id) if str(user_id).isdigit() else 1
+            elder_id_str = str(user_id)
             await dispatch_notification(
                 db=db,
-                elder_id=elder_id,
+                elder_id=elder_id_str,
                 title="Emergency Alert via Voice",
                 message="User requested emergency assistance via natural language.",
                 priority="high"

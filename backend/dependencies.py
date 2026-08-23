@@ -30,6 +30,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         print(f"DEBUG [DB]: User not found for id {user_id}")
         raise credentials_exception
+
+    # Session revocation check: verify token_version matches
+    token_ver = payload.get("ver")
+    if token_ver is not None and getattr(user, "token_version", None) is not None:
+        if token_ver != user.token_version:
+            print(f"DEBUG [JWT]: token_version mismatch (token={token_ver}, db={user.token_version}) - session revoked")
+            raise credentials_exception
     
     # Attach jwt_role to user object temporarily for debugging down the chain
     user.jwt_role = jwt_role

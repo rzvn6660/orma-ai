@@ -76,33 +76,39 @@ export default function PatientSwitcher({ user }) {
   return (
     <div className="relative">
       <button 
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+        className="flex items-center gap-2 bg-slate-900/60 hover:bg-slate-800/80 text-blue-400 border border-white/10 hover:border-blue-500/30 px-3.5 py-1.5 rounded-full transition-all shadow-md backdrop-blur-xl cursor-pointer"
       >
-        <User className="w-4 h-4" />
-        <span className="text-sm font-medium">Assisting: {activePatient?.name || 'Select Patient'}</span>
-        <ChevronDown className="w-4 h-4 opacity-70" />
+        <User className="w-4 h-4 text-blue-400" />
+        <span className="text-sm font-medium text-slate-200">Monitoring: <strong className="text-white">{activePatient?.name || 'Select Patient'}</strong></span>
+        <ChevronDown className="w-3.5 h-3.5 opacity-70" />
       </button>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div 
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute top-full mt-2 right-0 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden"
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            className="absolute top-full mt-2 right-0 w-56 bg-slate-900/90 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-2xl z-50 overflow-hidden"
           >
-            <div className="p-2 border-b border-slate-800 bg-slate-900/50">
-              <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider pl-2">Select Patient</span>
+            <div className="p-2.5 border-b border-white/10 bg-slate-950/40">
+              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider pl-2">Select Patient</span>
             </div>
-            <div className="p-1">
+            <div className="p-1.5 space-y-1">
               {patients.map(p => (
                 <button
                   key={p.id}
+                  type="button"
                   onClick={() => handleSelect(p)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer ${activePatient?.id === p.id ? 'bg-blue-600/20 text-blue-400 font-semibold' : 'text-slate-300 hover:bg-slate-800'}`}
+                  className={`w-full text-left px-3 py-2 text-xs rounded-xl transition-all cursor-pointer ${
+                    activePatient?.id === p.id 
+                      ? 'bg-blue-600/25 text-blue-400 font-bold border border-blue-500/30 shadow-sm' 
+                      : 'text-slate-300 hover:bg-white/5 border border-transparent'
+                  }`}
                 >
-                  <p className="font-medium truncate">{p.name}</p>
+                  <p className="font-bold truncate text-white">{p.name}</p>
                   <p className="text-[10px] text-slate-400 font-mono truncate">{p.email}</p>
                 </button>
               ))}

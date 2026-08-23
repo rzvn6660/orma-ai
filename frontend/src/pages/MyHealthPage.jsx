@@ -46,17 +46,17 @@ export default function MyHealthPage({ user, onViewChange }) {
     <ErrorBoundary>
       <div className="w-full max-w-7xl mx-auto flex flex-col gap-8 pb-12">
         {/* Workspace Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 md:p-8 rounded-3xl border border-slate-800 backdrop-blur-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 md:p-8 rounded-3xl border border-slate-800 backdrop-blur-xl shadow-lg">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/20">
-                <Heart className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3.5 mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white shrink-0">
+                <Heart className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-white tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
                   {user?.role === 'caregiver' ? 'Patient Health Workspace' : 'My Health Workspace'}
                 </h1>
-                <p className="text-slate-400 text-sm md:text-base">
+                <p className="text-slate-400 text-xs md:text-sm mt-0.5">
                   All your medications, planner, records, vitals, and reports unified in one place.
                 </p>
               </div>
@@ -224,6 +224,50 @@ function HealthOverviewTab({ user, onTabChange, onViewChange }) {
 // Internal Health Reports Tab Component
 function HealthReportsTab({ user }) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [reportData, setReportData] = useState({
+    medicines: [],
+    latestBP: null,
+    adherenceRate: null,
+    takenCount: 0,
+    totalCount: 0
+  });
+
+  useEffect(() => {
+    const loadReportContext = async () => {
+      try {
+        const [medsRes, recordsRes] = await Promise.allSettled([
+          (medicineApi.getReminders ? medicineApi.getReminders() : medicineApi.getMedicines()),
+          healthRecordApi.getRecords()
+        ]);
+
+        let meds = [];
+        let taken = 0;
+        if (medsRes.status === 'fulfilled' && Array.isArray(medsRes.value)) {
+          meds = medsRes.value;
+          taken = meds.filter(m => m.taken_status).length;
+        }
+
+        let bp = null;
+        if (recordsRes.status === 'fulfilled' && Array.isArray(recordsRes.value)) {
+          bp = recordsRes.value.find(r => r.vital_type === 'blood_pressure') || null;
+        }
+
+        const adherence = meds.length > 0 ? Math.round((taken / meds.length) * 100) : null;
+
+        setReportData({
+          medicines: meds,
+          latestBP: bp,
+          adherenceRate: adherence,
+          takenCount: taken,
+          totalCount: meds.length
+        });
+      } catch (err) {
+        console.error('Failed to load report context:', err);
+      }
+    };
+
+    loadReportContext();
+  }, []);
 
   const handleDownloadPdf = async () => {
     try {
@@ -259,13 +303,13 @@ function HealthReportsTab({ user }) {
 
   return (
     <div className="flex flex-col gap-8 max-w-5xl mx-auto">
-      <div className="orma-card p-8 border-indigo-500/30">
+      <div className="orma-card p-6 sm:p-8 border-blue-500/20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-              <BarChart3 className="w-7 h-7 text-indigo-400" /> Comprehensive Health Report
+            <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
+              <BarChart3 className="w-7 h-7 text-blue-400" /> Comprehensive Health Report
             </h2>
-            <p className="text-slate-400 mt-1">Generated summary of adherence, vitals, and medical events.</p>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1">Generated summary of adherence, vitals, and medical events.</p>
           </div>
           <button 
             onClick={handleDownloadPdf} 
@@ -280,31 +324,46 @@ function HealthReportsTab({ user }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
           <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Weekly Adherence Rate</p>
-            <p className="text-3xl font-extrabold text-emerald-400">94%</p>
-            <p className="text-xs text-slate-500 mt-1">18 of 19 doses confirmed</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Today's Adherence</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-emerald-400">
+              {reportData.adherenceRate !== null ? `${reportData.adherenceRate}%` : 'No data yet'}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {reportData.totalCount > 0 
+                ? `${reportData.takenCount} of ${reportData.totalCount} doses confirmed`
+                : 'No medicines scheduled today'}
+            </p>
           </div>
           <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Average Blood Pressure</p>
-            <p className="text-3xl font-extrabold text-blue-400">120/80</p>
-            <p className="text-xs text-slate-500 mt-1">Optimal Range</p>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Latest Blood Pressure</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-blue-400">
+              {reportData.latestBP ? `${reportData.latestBP.value} mmHg` : 'Not recorded'}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {reportData.latestBP ? (reportData.latestBP.date ? `Recorded on ${reportData.latestBP.date}` : 'Recently recorded') : 'No BP reading recorded'}
+            </p>
           </div>
           <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-700/50">
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Active Prescriptions</p>
-            <p className="text-3xl font-extrabold text-purple-400">3 Active</p>
-            <p className="text-xs text-slate-500 mt-1">Last updated 2 days ago</p>
+            <p className="text-2xl sm:text-3xl font-extrabold text-cyan-400">
+              {reportData.medicines.length} Active
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              {reportData.medicines.length > 0 ? 'Managed in medicine tracker' : 'No active prescriptions'}
+            </p>
           </div>
         </div>
 
-        <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-700/40 space-y-4">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-400" /> Orma AI Clinical Summary
+        <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-700/40 space-y-3">
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-blue-400" /> Orma AI Clinical Summary
           </h3>
-          <p className="text-slate-300 leading-relaxed text-base">
-            User maintains excellent adherence with morning medications. Blood pressure records show steady control. 
-            No acute confusion or emergency escalation detected over the past 14 days. Routine checkup with primary physician scheduled for next week.
+          <p className="text-slate-300 leading-relaxed text-sm sm:text-base">
+            {reportData.medicines.length > 0
+              ? `Patient routine is actively managed with ${reportData.medicines.length} scheduled medicine${reportData.medicines.length === 1 ? '' : 's'}. Daily reminders and confirmation telemetry are active.`
+              : 'No health records or medications logged yet. Start recording your daily medications and vitals to generate your personalized clinical summary.'}
           </p>
         </div>
       </div>

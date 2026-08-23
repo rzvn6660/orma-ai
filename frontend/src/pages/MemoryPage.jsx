@@ -9,7 +9,7 @@ import {
   Users, User, Activity, Star, Calendar, FileText, Database
 } from 'lucide-react';
 
-export default function MemoryPage({ currentView, onViewChange, user, onLogout }) {
+export default function MemoryPage({ currentView, onViewChange, user, onLogout, embedded = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('recently_used');
@@ -85,14 +85,14 @@ export default function MemoryPage({ currentView, onViewChange, user, onLogout }
     }
   };
 
-  return (
-    <DashboardLayout currentView={currentView} onViewChange={onViewChange} user={user} onLogout={onLogout}>
+  const content = (
+    <div className="w-full">
       <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Brain className="text-purple-400" /> My Memory
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <Brain className="text-cyan-400" /> Remembered for You
           </h1>
-          <p className="text-slate-400">View and manage everything Orma AI remembers about you.</p>
+          <p className="text-slate-400">View and manage health and personal details remembered by ORMA.</p>
         </div>
         
         <div className="flex gap-2">
@@ -219,6 +219,16 @@ export default function MemoryPage({ currentView, onViewChange, user, onLogout }
           ))
         )}
       </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <DashboardLayout currentView={currentView} onViewChange={onViewChange} user={user} onLogout={onLogout}>
+      {content}
     </DashboardLayout>
   );
 }

@@ -1,8 +1,14 @@
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)  # Load backend/.env before anything else
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from services.scheduler_service import start_scheduler, stop_scheduler
-from routes import health, speech, chat, medicine, memory, emergency, caregiver, wellness, auth, caregiver_link, notifications, wakeword, health_records, health_planner, ocme, ale, rlj, owe, tsgp, reports, insights
+from routes import health, speech, chat, medicine, memory, emergency, caregiver, wellness, auth, caregiver_link, notifications, wakeword, health_records, health_planner, ocme, ale, rlj, owe, tsgp, reports, insights, documents
 from database import engine, Base
 import models.health_event
 import models.medicine # Ensure model is imported before create_all
@@ -10,14 +16,33 @@ import models.memory # Ensure memory model is imported
 import models.wellness
 import models.notification
 import models.health_record
+from rag import rag_models # RAG Document models
 from memory import memory_models # OCME Memory models
 import models.ale # Adaptive Learning Engine models
 import models.rlj # Reflection & Life Journal Engine models
 import models.owe # Action & Workflow Engine models
 import models.tsgp # Trust, Safety & Clinical Governance Platform models
+import models.emergency # Emergency Alert models
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+def run_db_migrations():
+    import sqlite3
+    try:
+        from database import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(users)")
+        cols = [c[1] for c in cur.fetchall()]
+        if "phone" not in cols:
+            cur.execute("ALTER TABLE users ADD COLUMN phone TEXT;")
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[MIGRATION WARNING]: {e}")
+
+run_db_migrations()
 
 import asyncio
 
@@ -39,10 +64,25 @@ app = FastAPI(
 )
 
 # Configure CORS Middleware
-# This allows our React frontend (running on port 5173) to communicate with this backend.
+# Dynamically incorporate production frontend URLs from environment
+allowed_origins_list = [
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:5174", "http://127.0.0.1:5174",
+    "http://localhost:3000", "http://127.0.0.1:3000",
+    "http://localhost:8000", "http://127.0.0.1:8000"
+]
+for env_key in ("FRONTEND_URL", "ALLOWED_ORIGINS"):
+    val = os.getenv(env_key)
+    if val:
+        for url in val.split(","):
+            cleaned = url.strip().rstrip("/")
+            if cleaned and cleaned not in allowed_origins_list:
+                allowed_origins_list.append(cleaned)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allowed_origins_list,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,6 +100,7 @@ app.include_router(caregiver.router, prefix="/api/caregiver", tags=["Caregiver D
 app.include_router(wellness.router, prefix="/api/wellness", tags=["Wellness & Confusion"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(caregiver_link.router, prefix="/api/link", tags=["Caregiver Linking"])
+app.include_router(caregiver_link.router, prefix="/api/caregiver-link", tags=["Caregiver Linking Alias"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Real-time Notifications"])
 app.include_router(wakeword.router, prefix="/api/wakeword", tags=["Wake Word"])
 app.include_router(health_records.router, prefix="/api/health-records", tags=["Health Records"])
@@ -70,6 +111,9 @@ app.include_router(owe.router, prefix="/api", tags=["Action & Workflow Engine"])
 app.include_router(tsgp.router, prefix="/api", tags=["Trust, Safety & Clinical Governance"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(insights.router, prefix="/api/insights", tags=["AI Insights"])
+app.include_router(documents.router, prefix="/api/documents", tags=["RAG Documents"])
+
+from fastapi.responses import Response
 
 # Root route
 @app.get("/")
@@ -78,6 +122,10 @@ def home():
     Root endpoint.
     """
     return {"message": "Orma AI Backend Running"}
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 @app.get("/status")
 def status():

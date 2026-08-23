@@ -1,37 +1,52 @@
 import numpy as np
-import openwakeword
-from openwakeword.model import Model
 import os
-import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WakeWordService:
     def __init__(self):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.model_path = os.path.join(base_dir, "models", "hey_orma.onnx")
+        custom_path = os.environ.get("WAKEWORD_MODEL_PATH")
+        self.model_path = custom_path if custom_path else os.path.join(base_dir, "models", "hey_orma.onnx")
         self.model_name = "hey_orma"
+        self.mode = "DISABLED" # "ENABLED", "FALLBACK", "DISABLED"
         self.is_ready = False
         self.oww_model = None
         self.file_exists = False
         self.load_error = None
         
-        print(f"Model path: {self.model_path}")
+        self.file_exists = os.path.exists(self.model_path)
+        
         try:
-            self.file_exists = os.path.exists(self.model_path)
-            
+            from openwakeword.model import Model
             if self.file_exists:
                 self.oww_model = Model(wakeword_models=[self.model_path])
                 self.is_ready = True
-                print("Wake word model loaded successfully")
+                self.mode = "ENABLED"
+                logger.info(f"[WAKEWORD] ENABLED - Using custom model: {self.model_path}")
             else:
-                print(f"Model file not found at {self.model_path}. Custom wake word detection will be disabled.")
-                self.load_error = "Model file missing"
+                # Attempt fallback to openwakeword default model if available
+                try:
+                    self.oww_model = Model(wakeword_models=["hey_jarvis"])
+                    self.is_ready = True
+                    self.mode = "FALLBACK"
+                    self.model_name = "hey_jarvis (fallback)"
+                    logger.info("[WAKEWORD] FALLBACK MODE - Custom model missing, using default model: hey_jarvis")
+                except Exception as fallback_err:
+                    self.mode = "DISABLED"
+                    self.is_ready = False
+                    self.load_error = f"Model file not found at {self.model_path}. Fallback attempt failed: {fallback_err}"
+                    logger.warning(f"[WAKEWORD] DISABLED - Model not found at {self.model_path}")
         except Exception as e:
+            self.mode = "DISABLED"
+            self.is_ready = False
             self.load_error = str(e)
-            print(f"Model load error: {self.load_error}")
+            logger.warning(f"[WAKEWORD] DISABLED - OpenWakeWord error: {self.load_error}")
 
     def process_audio_chunk(self, audio_data: bytes, threshold: float = 0.5) -> dict:
         if not self.is_ready or not self.oww_model:
-            return {"detected": False, "confidence": 0.0}
+            return {"detected": False, "confidence": 0.0, "mode": self.mode}
             
         try:
             # OpenWakeWord expects 16-bit 16kHz mono audio
@@ -40,18 +55,18 @@ class WakeWordService:
             # Predict
             predictions = self.oww_model.predict(audio_np)
             
-            # Since there's only one model loaded, we grab its score
             score = 0.0
             for mdl, s in predictions.items():
-                score = s
+                score = float(s)
                 
             if score >= threshold:
-                print(f"Wake word detected! Confidence: {score:.2f}")
-                return {"detected": True, "confidence": score}
+                logger.info(f"[WAKEWORD] Detected! Confidence: {score:.2f} (Mode: {self.mode})")
+                return {"detected": True, "confidence": score, "mode": self.mode}
                 
-            return {"detected": False, "confidence": score}
+            return {"detected": False, "confidence": score, "mode": self.mode}
         except Exception as e:
-            # Silently ignore chunk errors
-            return {"detected": False, "confidence": 0.0}
+            logger.debug(f"[WAKEWORD] Chunk processing error: {e}")
+            return {"detected": False, "confidence": 0.0, "mode": self.mode}
 
 wakeword_service = WakeWordService()
+

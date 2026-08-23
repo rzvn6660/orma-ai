@@ -60,6 +60,10 @@ export const medicineApi = {
     const { data } = await api.get('/api/medicines');
     return data;
   },
+  getMedicines: async () => {
+    const { data } = await api.get('/api/medicines');
+    return data;
+  },
   takeMedicine: async (id) => {
     const { data } = await api.put(`/api/medicines/${id}/taken`);
     return data;
@@ -111,8 +115,30 @@ export const medicineApi = {
 };
 
 export const emergencyApi = {
-  analyze: async (text, userId = 'default_user') => {
-    const { data } = await api.post('/api/emergency/analyze', { text, user_id: userId });
+  analyze: async (text, userId = 'default_user', severity = 'critical', alertSource = 'Emergency SOS', location = null) => {
+    const { data } = await api.post('/api/emergency/analyze', { 
+      text, 
+      user_id: userId,
+      severity,
+      alert_source: alertSource,
+      location
+    });
+    return data;
+  },
+  getActive: async () => {
+    const { data } = await api.get('/api/emergency/active');
+    return data;
+  },
+  getHistory: async () => {
+    const { data } = await api.get('/api/emergency/history');
+    return data;
+  },
+  acknowledge: async (alertId) => {
+    const { data } = await api.post(`/api/emergency/${alertId}/acknowledge`);
+    return data;
+  },
+  resolve: async (alertId) => {
+    const { data } = await api.post(`/api/emergency/${alertId}/resolve`);
     return data;
   }
 };
@@ -139,6 +165,14 @@ export const caregiverApi = {
   },
   getBehavior: async () => {
     const { data } = await api.get('/api/caregiver/behavior');
+    return data;
+  },
+  getProfile: async () => {
+    const { data } = await api.get('/api/caregiver/profile');
+    return data;
+  },
+  updatePhone: async (phone) => {
+    const { data } = await api.put('/api/caregiver/profile/phone', { phone });
     return data;
   }
 };
@@ -177,6 +211,38 @@ export const authApi = {
   },
   verifyOtp: async (phone, otp, role) => {
     const { data } = await api.post('/api/auth/verify-otp', { phone, otp, role });
+    return data;
+  },
+  forgotPassword: async (email) => {
+    const { data } = await api.post('/api/auth/forgot-password', { email });
+    return data;
+  },
+  validateResetToken: async (token) => {
+    const { data } = await api.post('/api/auth/validate-reset-token', { token });
+    return data;
+  },
+  resetPassword: async (token, new_password) => {
+    const { data } = await api.post('/api/auth/reset-password', { token, new_password });
+    return data;
+  },
+  changePassword: async (current_password, new_password) => {
+    const { data } = await api.post('/api/auth/change-password', { current_password, new_password });
+    return data;
+  },
+  verifyEmailOtp: async (email, otp) => {
+    const { data } = await api.post('/api/auth/verify-email-otp', { email, otp });
+    return data;
+  },
+  resendVerificationOtp: async (email) => {
+    const { data } = await api.post('/api/auth/resend-verification-otp', { email });
+    return data;
+  },
+  resendEmailOtp: async (email) => {
+    const { data } = await api.post('/api/auth/resend-email-otp', { email });
+    return data;
+  },
+  verifyEmailToken: async (token) => {
+    const { data } = await api.post('/api/auth/verify-email', { token });
     return data;
   }
 };
@@ -219,6 +285,14 @@ export const notificationApi = {
   },
   markRead: async (notifId) => {
     const { data } = await api.post(`/api/notifications/${notifId}/read`);
+    return data;
+  },
+  getPreferences: async () => {
+    const { data } = await api.get('/api/notifications/preferences');
+    return data;
+  },
+  updatePreferences: async (preferences) => {
+    const { data } = await api.put('/api/notifications/preferences', preferences);
     return data;
   }
 };
@@ -382,6 +456,30 @@ export const reportApi = {
 export const insightsApi = {
   getSummary: async () => {
     const { data } = await api.get('/api/insights/summary');
+    return data;
+  }
+};
+
+export const documentsApi = {
+  upload: async (file, documentType = 'general_document') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+    const { data } = await api.post('/api/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  list: async () => {
+    const { data } = await api.get('/api/documents');
+    return data;
+  },
+  get: async (documentId) => {
+    const { data } = await api.get(`/api/documents/${documentId}`);
+    return data;
+  },
+  delete: async (documentId) => {
+    const { data } = await api.delete(`/api/documents/${documentId}`);
     return data;
   }
 };
