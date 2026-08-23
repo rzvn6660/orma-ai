@@ -19,3 +19,7 @@ reportlab
 google-auth
 PyMuPDF
 resend
+python-dotenv
+pytest
+pytest-asyncio
+

@@ -19,10 +19,30 @@ from services.notification_preference_service import (
 from services.notification_service import dispatch_notification
 import asyncio
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def setup_db():
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        db.query(Notification).delete()
+        db.query(EmergencyAlert).delete()
+        db.query(CaregiverRelationship).delete()
+        db.query(NotificationPreferences).delete()
+        db.query(User).filter(User.id.in_(["test_elder_1", "test_cg_1", "test_cg_unlinked"])).delete()
+        db.commit()
+    finally:
+        db.close()
     yield
+    db = SessionLocal()
+    try:
+        db.query(Notification).delete()
+        db.query(EmergencyAlert).delete()
+        db.query(CaregiverRelationship).delete()
+        db.query(NotificationPreferences).delete()
+        db.query(User).filter(User.id.in_(["test_elder_1", "test_cg_1", "test_cg_unlinked"])).delete()
+        db.commit()
+    finally:
+        db.close()
 
 def test_1_elderly_default_and_caregiver_default_preferences():
     db = SessionLocal()

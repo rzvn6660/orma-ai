@@ -3,8 +3,11 @@ import os
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
-import sys
-sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass
 from fastapi.testclient import TestClient
 from main import app
 from database import SessionLocal
