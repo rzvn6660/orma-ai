@@ -236,7 +236,7 @@ async def run_conversational_brain_audit():
     # TEST 8: Medication Safety & Non-Mutation Verification
     # ---------------------------------------------------------
     meds_after = db.query(MedicineReminder).filter(MedicineReminder.elder_id == test_uid).all()
-    status_map = {m.id: m.taken_status for m in meds_after}
+    status_map: dict[int, bool] = {int(m.id): bool(m.taken_status) for m in meds_after}
     assert status_map[2001] is True, "m1 must remain taken"
     assert status_map[2002] is False, "m2 must remain pending"
     assert status_map[2003] is False, "m3 must remain pending"

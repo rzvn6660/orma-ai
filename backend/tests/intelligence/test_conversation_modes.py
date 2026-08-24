@@ -192,7 +192,7 @@ async def run_brain_modes_audit():
     # TEST 8: Medication Non-Mutation Verification
     # ---------------------------------------------------------
     meds_after = db.query(MedicineReminder).filter(MedicineReminder.elder_id == test_uid).all()
-    status_map = {m.id: m.taken_status for m in meds_after}
+    status_map: dict[int, bool] = {int(m.id): bool(m.taken_status) for m in meds_after}
     assert status_map[4001] is True, "4001 must remain taken"
     assert status_map[4002] is False, "4002 must remain pending"
     print("[PASS] Medication safety state non-mutation PASSED")

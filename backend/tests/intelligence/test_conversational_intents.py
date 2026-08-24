@@ -179,7 +179,7 @@ async def run_intent_audit():
         (MedicineReminder.elder_id == test_user_id) | 
         (MedicineReminder.subject_id == test_user_id)
     ).all()
-    status_map = {m.id: m.taken_status for m in meds_after}
+    status_map: dict[int, bool] = {int(m.id): bool(m.taken_status) for m in meds_after}
     assert status_map[1001] is True, "med 1001 must remain taken"
     assert status_map[1002] is False, "med 1002 must remain pending"
     assert status_map[1003] is False, "med 1003 must remain pending"
