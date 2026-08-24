@@ -49,5 +49,3 @@ extraPaths = ["backend"]
 venvPath = "backend"
 venv = "venv"
 pythonVersion = "3.11"
-reportMissingImports = "none"
-reportMissingModuleSource = "none"
