@@ -1,0 +1,39 @@
+# Exclude sensitive secrets and local environment variables
+.env
+.env.*
+!.env.example
+
+# Exclude local database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+orma.db
+data/
+data_prod/
+backups/
+*.meta.json
+scratch/
+
+# Exclude python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Exclude temporary uploads and runtime directories
+temp_audio/
+temp_uploads/
+uploads/
+
+# Exclude git and development IDE files
+.git/
+.github/
+.vscode/
+.idea/
+*.log

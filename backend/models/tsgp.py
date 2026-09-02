@@ -10,7 +10,7 @@ class TSGPAuditLog(Base, IdentityMixin):
     __tablename__ = "tsgp_audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     intent = Column(String(100))
     request_text = Column(Text, nullable=True)

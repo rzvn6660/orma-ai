@@ -10,7 +10,7 @@ class JournalEntry(Base, IdentityMixin):
     __tablename__ = "rlj_journal_entries"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     entry_type = Column(String(50)) # daily, weekly, monthly
     date = Column(DateTime, default=datetime.datetime.utcnow)
@@ -27,7 +27,7 @@ class LifeEvent(Base, IdentityMixin):
     __tablename__ = "rlj_life_events"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     event_type = Column(String(50)) # appointment, vaccination, memory, milestone
     title = Column(String(255))
@@ -46,7 +46,7 @@ class CaregiverSummary(Base, IdentityMixin):
     __tablename__ = "rlj_caregiver_summaries"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     summary_type = Column(String(50)) # daily, weekly
     date = Column(DateTime, default=datetime.datetime.utcnow)

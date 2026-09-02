@@ -42,15 +42,7 @@ class ConnectionCode(Base):
     expires_at = Column(DateTime)
     is_used = Column(Boolean, default=False)
 
-class AuditLog(Base):
-    __tablename__ = "audit_logs"
-    __table_args__ = {'extend_existing': True}
-    
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, index=True)
-    action = Column(String)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    details = Column(String, nullable=True)
+from .audit import AuditLog
 
 class RateLimit(Base):
     __tablename__ = "rate_limits"

@@ -4,20 +4,20 @@ services:
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
-    plan: starter
+    plan: free
     region: oregon
     healthCheckPath: /api/health
-    disk:
-      name: orma-data
-      mountPath: /data
-      sizeGB: 10
     envVars:
       - key: ENVIRONMENT
         value: production
-      - key: SQLITE_DB_PATH
-        value: /data/orma.db
-      - key: RAG_UPLOAD_DIR
-        value: /data/uploads/documents
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: medical-documents
       - key: JWT_SECRET_KEY
         sync: false
       - key: RESEND_API_KEY
@@ -33,4 +33,14 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: BACKUP_INTERVAL_HOURS
+        value: "6"
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
         sync: false

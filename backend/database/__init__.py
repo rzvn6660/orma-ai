@@ -3,6 +3,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 import os
+import re
+import urllib.parse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,22 +18,59 @@ db_dir = os.path.dirname(os.path.abspath(DB_PATH))
 if db_dir:
     os.makedirs(db_dir, exist_ok=True)
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{DB_PATH}"
-resolved_db_path = DB_PATH
-logger.info(f"[DATABASE] Resolved absolute SQLite database path: {resolved_db_path}")
+raw_database_url = (os.getenv("DATABASE_URL") or "").strip()
+if raw_database_url:
+    # Normalize postgres:// to postgresql:// for SQLAlchemy compatibility
+    if raw_database_url.startswith("postgres://"):
+        raw_database_url = "postgresql://" + raw_database_url[len("postgres://"):]
 
-# connect_args={"check_same_thread": False} is needed for SQLite in FastAPI
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 15}
-)
+    # Safely handle passwords containing unencoded '@' characters
+    if raw_database_url.count("@") > 1:
+        import urllib.parse
+        prefix_match = re.match(
+            r"^(?P<scheme>[a-zA-Z0-9_+]+://)(?P<user>[^:/]+):(?P<password>.+)@(?P<hostportpath>[^@]+)$",
+            raw_database_url
+        )
+        if prefix_match:
+            scheme = prefix_match.group("scheme")
+            user = prefix_match.group("user")
+            password = prefix_match.group("password")
+            hostportpath = prefix_match.group("hostportpath")
+            encoded_password = urllib.parse.quote_plus(urllib.parse.unquote_plus(password))
+            raw_database_url = f"{scheme}{user}:{encoded_password}@{hostportpath}"
 
+    SQLALCHEMY_DATABASE_URL = raw_database_url
+    is_sqlite = False
+    logger.info("[DATABASE] Configured PostgreSQL database connection pool")
+else:
+    SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+    is_sqlite = True
+    logger.info(f"[DATABASE] Configured SQLite database: {DB_PATH}")
 
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL;")
-    cursor.execute("PRAGMA busy_timeout=10000;")
-    cursor.close()
+if is_sqlite:
+    # SQLite configuration for local development & testing
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False, "timeout": 15}
+    )
+
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        # Only execute PRAGMA statements on SQLite connections
+        if dbapi_connection.__class__.__module__.startswith("sqlite"):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=10000;")
+            cursor.close()
+else:
+    # PostgreSQL configuration for Supabase production
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_size=5,
+        max_overflow=5
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -39,6 +78,10 @@ Base = declarative_base()
 
 def ensure_schema_migrations():
     """Ensures SQLite tables contain all columns required by updated SQLAlchemy models."""
+    if engine.dialect.name != "sqlite":
+        logger.info("[DATABASE] PostgreSQL dialect active; schema managed via SQLAlchemy Base.metadata.create_all.")
+        return
+
     import sqlite3
     try:
         conn = sqlite3.connect(DB_PATH)

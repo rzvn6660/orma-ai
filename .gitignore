@@ -58,3 +58,10 @@ npm-debug.log*
 *.sln
 *.sw?
 
+# Scratch, backups, and local agent customizations
+scratch/
+backend/backups/
+backups/
+Untitled*
+.agents/
+skills-lock.json

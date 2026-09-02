@@ -4,7 +4,7 @@ from pathlib import Path
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)  # Load backend/.env before anything else
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from services.scheduler_service import start_scheduler, stop_scheduler
@@ -28,6 +28,8 @@ import models.emergency # Emergency Alert models
 Base.metadata.create_all(bind=engine)
 
 def run_db_migrations():
+    if engine.dialect.name != "sqlite":
+        return
     import sqlite3
     try:
         from database import DB_PATH
@@ -64,29 +66,62 @@ app = FastAPI(
 )
 
 # Configure CORS Middleware
-# Dynamically incorporate production frontend URLs from environment
-allowed_origins_list = [
-    "http://localhost:5173", "http://127.0.0.1:5173",
-    "http://localhost:5174", "http://127.0.0.1:5174",
-    "http://localhost:3000", "http://127.0.0.1:3000",
-    "http://localhost:8000", "http://127.0.0.1:8000"
-]
-for env_key in ("FRONTEND_URL", "ALLOWED_ORIGINS"):
-    val = os.getenv(env_key)
-    if val:
-        for url in val.split(","):
-            cleaned = url.strip().rstrip("/")
-            if cleaned and cleaned not in allowed_origins_list:
-                allowed_origins_list.append(cleaned)
+# In production, strictly enforce explicit origins from FRONTEND_URL and ALLOWED_ORIGINS.
+# In development/test mode, allow localhost and 127.0.0.1 for local developer workflows.
+env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins_list,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+allowed_origins_list = []
+allow_origin_regex = None
+
+if env_mode == "production":
+    for env_key in ("FRONTEND_URL", "ALLOWED_ORIGINS"):
+        val = os.getenv(env_key)
+        if val:
+            for url in val.split(","):
+                cleaned = url.strip().rstrip("/")
+                if cleaned and cleaned not in allowed_origins_list:
+                    allowed_origins_list.append(cleaned)
+    # Never allow localhost, 127.0.0.1, or regex wildcards in production
+else:
+    # Development and test environment defaults
+    allowed_origins_list = [
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "http://localhost:5174", "http://127.0.0.1:5174",
+        "http://localhost:3000", "http://127.0.0.1:3000",
+        "http://localhost:8000", "http://127.0.0.1:8000"
+    ]
+    for env_key in ("FRONTEND_URL", "ALLOWED_ORIGINS"):
+        val = os.getenv(env_key)
+        if val:
+            for url in val.split(","):
+                cleaned = url.strip().rstrip("/")
+                if cleaned and cleaned not in allowed_origins_list:
+                    allowed_origins_list.append(cleaned)
+    allow_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+cors_kwargs = {
+    "allow_origins": allowed_origins_list,
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"]
+}
+if allow_origin_regex:
+    cors_kwargs["allow_origin_regex"] = allow_origin_regex
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
+
+# Security Response Headers Middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
+    if env_mode == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # Include API routes
 app.include_router(health.router, prefix="/api", tags=["System"])

@@ -138,6 +138,23 @@ def check_all_reminders():
         db.close()
 
 
+def run_automated_backup():
+    """
+    Executes automated point-in-time SQLite backup on scheduled interval.
+    """
+    try:
+        from database import engine
+        if engine.dialect.name != "sqlite":
+            logger.info("[AUTOMATED-BACKUP] Active database is PostgreSQL. Local SQLite backup bypassed (managed via Supabase).")
+            return
+        from infrastructure.backup_service import BackupService
+        logger.info("[AUTOMATED-BACKUP] Scheduled database backup triggering...")
+        res = BackupService.create_backup()
+        logger.info(f"[AUTOMATED-BACKUP] Successfully created backup {res['filename']} ({res['file_size_bytes']} bytes)")
+    except Exception as e:
+        logger.error(f"[AUTOMATED-BACKUP ERROR] Automated backup failed: {type(e).__name__} ({str(e)})")
+
+
 def start_scheduler(loop=None):
     """
     Starts the APScheduler background jobs.
@@ -149,6 +166,27 @@ def start_scheduler(loop=None):
     if not scheduler.running:
         # Check every 15 seconds
         scheduler.add_job(check_all_reminders, 'interval', seconds=15, id='check_reminders', replace_existing=True)
+
+        # Automated SQLite database backup (default: every 6 hours for SQLite)
+        import os
+        try:
+            from database import engine
+            if engine.dialect.name == "sqlite":
+                backup_hours = int(os.getenv("BACKUP_INTERVAL_HOURS", "6"))
+                if backup_hours > 0:
+                    scheduler.add_job(
+                        run_automated_backup,
+                        'interval',
+                        hours=backup_hours,
+                        id='automated_db_backup',
+                        replace_existing=True
+                    )
+                    logger.info(f"[AUTOMATED-BACKUP] Registered background SQLite backup job every {backup_hours} hours.")
+            else:
+                logger.info("[AUTOMATED-BACKUP] Database is PostgreSQL; skipping local SQLite backup schedule (managed externally).")
+        except Exception as e:
+            logger.warning(f"[AUTOMATED-BACKUP] Failed to register backup job: {e}")
+
         scheduler.start()
         logger.info("Background reminder scheduler started.")
 

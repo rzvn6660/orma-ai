@@ -11,7 +11,7 @@ class BehaviourProfile(Base, IdentityMixin):
     __tablename__ = "ale_behaviour_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True, unique=True)
+    user_id = Column(String, index=True, unique=True)
     
     preferred_language = Column(String(50), default="en")
     speaking_speed = Column(String(50), default="normal")
@@ -33,7 +33,7 @@ class LearningCandidate(Base, IdentityMixin):
     __tablename__ = "ale_learning_candidates"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     pattern_type = Column(String(100)) # e.g., 'medicine_delay', 'language_preference'
     suggestion_text = Column(String(255))

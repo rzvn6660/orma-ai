@@ -38,9 +38,21 @@ class SubjectResolver:
                         "clarification_message": None
                     }
                     
-            # Fallback for old tests / no header
+            # Resolve from database relationships if available
             linked_patient_name = "John"
             linked_patient_id = "default_elderly"
+            
+            if db_session:
+                from models.user import CaregiverRelationship
+                rels = db_session.query(CaregiverRelationship).filter(
+                    CaregiverRelationship.caregiver_id == str(actor["id"]),
+                    CaregiverRelationship.status == "approved"
+                ).all()
+                if len(rels) == 1:
+                    patient = db_session.query(User).filter(User.id == rels[0].elder_id).first()
+                    if patient:
+                        linked_patient_id = str(patient.id)
+                        linked_patient_name = patient.name
             
             if has_first_person:
                 # Ambiguous: is it caregiver's own medicine, or the patient's?

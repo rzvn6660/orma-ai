@@ -9,7 +9,7 @@ class OCMEMemory(Base):
     __tablename__ = "ocme_memories"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
+    user_id = Column(String, index=True)
     
     category = Column(String(50), index=True)
     title = Column(String(255))

@@ -54,16 +54,29 @@ async def analyze_emergency(
             message="No emergency detected."
         )
     
-    # Resolve Elder User: prioritize authenticated user, fallback to target elder if caregiver triggered
+    # Resolve Elder User: prioritize authenticated user; only approved caregivers may trigger on behalf of linked elders
     elder_user = current_user
-    if elder_user.role == "caregiver" and request.user_id:
+    if request.user_id and request.user_id != current_user.id:
+        if current_user.role != "caregiver":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. Non-caregivers cannot trigger emergencies for other users."
+            )
+        # Check approved caregiver relationship
+        rel = db.query(CaregiverRelationship).filter(
+            CaregiverRelationship.caregiver_id == current_user.id,
+            CaregiverRelationship.elder_id == request.user_id,
+            CaregiverRelationship.status == "approved"
+        ).first()
+        if not rel:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You do not have an approved caregiver relationship with this user."
+            )
         target_elder = db.query(User).filter(User.id == request.user_id).first()
-        if target_elder:
-            elder_user = target_elder
-    elif request.user_id and request.user_id != elder_user.id:
-        target_elder = db.query(User).filter(User.id == request.user_id).first()
-        if target_elder:
-            elder_user = target_elder
+        if not target_elder:
+            raise HTTPException(status_code=404, detail="Target elder user not found.")
+        elder_user = target_elder
 
     elder_id = elder_user.id
     elder_name = elder_user.name or "Family Member"
@@ -249,12 +262,25 @@ async def acknowledge_emergency(
     db: Session = Depends(get_db)
 ):
     """
-    Caregiver acknowledges an emergency alert.
+    Caregiver or Elder acknowledges an emergency alert.
     Updates DB status and notifies Elder & all linked caregivers via real-time WebSocket.
     """
     alert = db.query(EmergencyAlert).filter(EmergencyAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Emergency alert not found.")
+
+    # Authorization Check: User must be the elder or an approved linked caregiver
+    if current_user.id != alert.elder_id:
+        rel = db.query(CaregiverRelationship).filter(
+            CaregiverRelationship.caregiver_id == current_user.id,
+            CaregiverRelationship.elder_id == alert.elder_id,
+            CaregiverRelationship.status == "approved"
+        ).first()
+        if not rel:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You are not authorized to acknowledge this emergency alert."
+            )
 
     alert.status = "acknowledged"
     alert.acknowledged_at = datetime.utcnow()
@@ -303,6 +329,19 @@ async def resolve_emergency(
     alert = db.query(EmergencyAlert).filter(EmergencyAlert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Emergency alert not found.")
+
+    # Authorization Check: User must be the elder or an approved linked caregiver
+    if current_user.id != alert.elder_id:
+        rel = db.query(CaregiverRelationship).filter(
+            CaregiverRelationship.caregiver_id == current_user.id,
+            CaregiverRelationship.elder_id == alert.elder_id,
+            CaregiverRelationship.status == "approved"
+        ).first()
+        if not rel:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You are not authorized to resolve this emergency alert."
+            )
 
     alert.status = "resolved"
     alert.resolved_at = datetime.utcnow()

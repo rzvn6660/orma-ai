@@ -64,16 +64,25 @@ def get_notifications(current_user: User = Depends(get_current_user), db: Sessio
     """
     Retrieves all notification history for the authenticated user.
     """
-    notifications = db.query(Notification).filter(Notification.user_id == current_user.id).order_by(Notification.created_at.desc()).all()
+    from sqlalchemy import or_
+    notifications = db.query(Notification).filter(
+        or_(
+            Notification.caregiver_id == current_user.id,
+            Notification.elder_id == current_user.id,
+            Notification.subject_id == current_user.id,
+            Notification.actor_id == current_user.id
+        )
+    ).order_by(Notification.created_at.desc()).all()
     return [
         {
             "id": n.id,
             "title": n.title,
-            "body": n.body,
-            "type": n.type,
-            "read": n.read,
-            "data": n.data,
-            "created_at": n.created_at.isoformat()
+            "body": n.message,
+            "message": n.message,
+            "priority": n.priority,
+            "read": n.is_read,
+            "is_read": n.is_read,
+            "created_at": n.created_at.isoformat() if n.created_at else None
         } for n in notifications
     ]
 
@@ -82,11 +91,20 @@ def mark_notification_read(notification_id: int, current_user: User = Depends(ge
     """
     Marks a single notification as read.
     """
-    notification = db.query(Notification).filter(Notification.id == notification_id, Notification.user_id == current_user.id).first()
+    from sqlalchemy import or_
+    notification = db.query(Notification).filter(
+        Notification.id == notification_id,
+        or_(
+            Notification.caregiver_id == current_user.id,
+            Notification.elder_id == current_user.id,
+            Notification.subject_id == current_user.id,
+            Notification.actor_id == current_user.id
+        )
+    ).first()
     if not notification:
         return {"status": "not_found"}
     
-    notification.read = True
+    notification.is_read = True
     db.commit()
     return {"status": "success"}
 
@@ -95,6 +113,68 @@ def mark_all_notifications_read(current_user: User = Depends(get_current_user), 
     """
     Marks all notifications as read for the user.
     """
-    db.query(Notification).filter(Notification.user_id == current_user.id, Notification.read == False).update({"read": True})
+    from sqlalchemy import or_
+    db.query(Notification).filter(
+        or_(
+            Notification.caregiver_id == current_user.id,
+            Notification.elder_id == current_user.id,
+            Notification.subject_id == current_user.id,
+            Notification.actor_id == current_user.id
+        ),
+        Notification.is_read == False
+    ).update({"is_read": True}, synchronize_session=False)
     db.commit()
     return {"status": "success"}
+
+@router.websocket("/ws/{user_id}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    user_id: str,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticated WebSocket endpoint for real-time notification streams.
+    Strictly verifies JWT authentication, user identity binding, and token versioning.
+    """
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_sub = payload.get("sub")
+        if not token_sub or str(token_sub) != str(user_id):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        user = db.query(User).filter(User.id == token_sub).first()
+        if not user or not getattr(user, "is_active", True):
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        # Check token version revocation
+        token_ver = payload.get("ver")
+        if getattr(user, "token_version", None) is not None:
+            if token_ver is None or token_ver != user.token_version:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+
+    except Exception:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await manager.connect(websocket, user_id)
+    try:
+        while True:
+            # Handle incoming ping / messages with max size
+            data = await websocket.receive_text()
+            if len(data) > 4096:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                break
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
+    except Exception:
+        manager.disconnect(websocket, user_id)

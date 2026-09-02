@@ -50,7 +50,7 @@ def test_medicine_reminder_full_integration():
         now_utc = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
         local_tz = pytz.timezone("Asia/Kolkata")
         local_now = now_utc.astimezone(local_tz)
-        current_time_str = local_now.strftime("%I:%M %p")
+        current_time_str = f"{local_now.strftime('%I:%M %p')}, {(local_now + datetime.timedelta(minutes=1)).strftime('%I:%M %p')}"
 
         # 2. Create test medicine reminder
         med = MedicineReminder(

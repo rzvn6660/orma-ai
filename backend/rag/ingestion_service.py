@@ -21,6 +21,7 @@ from rag.rag_models import (
 from rag.embeddings import BaseEmbeddingProvider, default_embedding_provider
 from rag.processors import get_document_processor, ALLOWED_EXTENSIONS
 from rag.processors.normalizer import normalize_text
+from infrastructure.storage_service import storage_service, build_document_object_key
 
 logger = logging.getLogger(__name__)
 
@@ -223,12 +224,16 @@ class DocumentIngestionService:
         # -------------------------------------------------------------
         t_upload_start = time.perf_counter()
         doc_id = str(uuid.uuid4())
-        user_folder = os.path.join(self.upload_dir, uid)
-        os.makedirs(user_folder, exist_ok=True)
-        saved_file_path = os.path.join(user_folder, f"{doc_id}_{safe_name}")
-
-        with open(saved_file_path, "wb") as f:
-            f.write(file_bytes)
+        
+        # Build canonical user-isolated object key: {user_id}/{document_id}/{sanitized_filename}
+        storage_object_key = build_document_object_key(uid, doc_id, safe_name)
+        bucket = getattr(storage_service, "default_bucket", "medical-documents")
+        saved_file_path = storage_service.upload_file(
+            bucket=bucket,
+            object_path=storage_object_key,
+            file_bytes=file_bytes,
+            content_type=content_type
+        )
 
         upload_time_ms = int((time.perf_counter() - t_upload_start) * 1000)
 

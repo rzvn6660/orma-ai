@@ -715,89 +715,6 @@ def logout_all_sessions(current_user: User = Depends(get_current_user), db: Sess
     db.commit()
     return {"message": "All sessions have been successfully logged out."}
 
-@router.delete("/delete-account")
-@router.delete("/me")
-def delete_account(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    user_id = current_user.id
-    
-    # 1. Delete medicine reminders
-    try:
-        from models.medicine import MedicineReminder
-        db.query(MedicineReminder).filter(
-            (MedicineReminder.elder_id == user_id) | 
-            (MedicineReminder.subject_id == user_id) | 
-            (MedicineReminder.actor_id == user_id)
-        ).delete(synchronize_session=False)
-    except Exception as e:
-        logger.warning(f"Error cleaning medicine reminders during account deletion: {e}")
-
-    # 2. Delete health records
-    try:
-        from models.health_record import HealthRecord
-        db.query(HealthRecord).filter(
-            (HealthRecord.subject_id == user_id) | 
-            (HealthRecord.user_id == user_id) | 
-            (HealthRecord.actor_id == user_id)
-        ).delete(synchronize_session=False)
-    except Exception as e:
-        logger.warning(f"Error cleaning health records during account deletion: {e}")
-
-    # 3. Delete RAG documents & chunks
-    try:
-        from rag.rag_models import RAGDocument, RAGDocumentChunk
-        docs = db.query(RAGDocument).filter(RAGDocument.user_id == user_id).all()
-        for d in docs:
-            if d.file_path and os.path.exists(d.file_path):
-                try:
-                    os.remove(d.file_path)
-                except Exception:
-                    pass
-        db.query(RAGDocumentChunk).filter(RAGDocumentChunk.user_id == user_id).delete(synchronize_session=False)
-        db.query(RAGDocument).filter(RAGDocument.user_id == user_id).delete(synchronize_session=False)
-    except Exception as e:
-        logger.warning(f"Error cleaning documents during account deletion: {e}")
-
-    # 4. Delete memories
-    try:
-        from memory.memory_models import OCMEMemory
-        db.query(OCMEMemory).filter(OCMEMemory.user_id == user_id).delete(synchronize_session=False)
-    except Exception as e:
-        logger.warning(f"Error cleaning OCME memories: {e}")
-
-    try:
-        from models.memory import Memory
-        db.query(Memory).filter(Memory.user_id == user_id).delete(synchronize_session=False)
-    except Exception as e:
-        logger.warning(f"Error cleaning legacy memories: {e}")
-
-    # 5. Delete caregiver relationships & connection codes
-    db.query(CaregiverRelationship).filter(
-        (CaregiverRelationship.caregiver_id == user_id) | 
-        (CaregiverRelationship.elder_id == user_id)
-    ).delete(synchronize_session=False)
-    db.query(ConnectionCode).filter(ConnectionCode.elder_id == user_id).delete(synchronize_session=False)
-
-    # 6. Delete tokens & OTPs
-    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete(synchronize_session=False)
-    db.query(EmailVerificationOTP).filter(EmailVerificationOTP.user_id == user_id).delete(synchronize_session=False)
-    
-    # 7. Delete preferences, audit logs, rate limits
-    try:
-        from models.notification import NotificationPreference
-        db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).delete(synchronize_session=False)
-    except Exception:
-        pass
-
-    db.query(AuditLog).filter(AuditLog.user_id == user_id).delete(synchronize_session=False)
-    db.query(RateLimit).filter(RateLimit.user_id == user_id).delete(synchronize_session=False)
-
-    # 8. Delete user record
-    db.delete(current_user)
-    db.commit()
-
-    logger.info(f"[AUTH-DELETE-ACCOUNT] User account {user_id} and all related records deleted cleanly")
-    return {"status": "success", "message": "Account and all associated data deleted successfully."}
-
 @router.post("/request-otp")
 def request_otp(data: PhoneAuth):
     env_mode = os.environ.get("ENVIRONMENT", os.environ.get("ENV", "development")).strip().lower()
@@ -1217,22 +1134,36 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
 # DELETE /api/auth/me
 # Authenticated user account deletion. Safely cascades user-owned data.
 # ──────────────────────────────────────────────────────────────
+@router.delete("/delete-account")
 @router.delete("/me")
 def delete_account(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     user_id = current_user.id
     user_email = current_user.email
     logger.info(f"[AUTH-DELETE-ACCOUNT] User account deletion requested for user_id={user_id}")
 
-    # 1. RAG documents, chunks, and physical files
+    # 1. RAG documents, chunks, and storage objects
     try:
         from rag.rag_models import RAGDocument, RAGDocumentChunk
+        from infrastructure.storage_service import storage_service
+        bucket = getattr(storage_service, "default_bucket", "medical-documents")
         rag_docs = db.query(RAGDocument).filter(RAGDocument.user_id == user_id).all()
         for doc in rag_docs:
-            if doc.file_path and os.path.exists(doc.file_path):
+            if doc.file_path:
                 try:
-                    os.remove(doc.file_path)
-                except Exception:
-                    pass
+                    storage_service.delete_file(bucket=bucket, object_path=doc.file_path)
+                except Exception as del_err:
+                    logger.warning(f"[AUTH-DELETE-ACCOUNT] Storage object cleanup warning: {del_err}")
+                if os.path.exists(doc.file_path):
+                    try:
+                        os.remove(doc.file_path)
+                    except Exception:
+                        pass
+        # Clean user storage folder prefix: {user_id}/
+        try:
+            storage_service.delete_folder(bucket=bucket, folder_prefix=f"{user_id}/")
+        except Exception:
+            pass
+
         db.query(RAGDocumentChunk).filter(RAGDocumentChunk.user_id == user_id).delete(synchronize_session=False)
         db.query(RAGDocument).filter(RAGDocument.user_id == user_id).delete(synchronize_session=False)
     except Exception as e:

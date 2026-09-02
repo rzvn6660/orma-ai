@@ -20,7 +20,11 @@ def verify_google_id_token(token_str: str) -> dict:
     if not token_str:
         raise ValueError("No ID token provided.")
 
-    client_id = os.getenv("GOOGLE_CLIENT_ID") or None
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip() or None
+    env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
+    
+    if env_mode == "production" and not client_id:
+        raise ValueError("Google authentication unavailable: GOOGLE_CLIENT_ID is not configured in production.")
 
     # 1. Primary verification using official google-auth library
     try:
@@ -45,6 +49,10 @@ def verify_google_id_token(token_str: str) -> dict:
             "email_verified": True
         }
     except Exception as primary_err:
+        # If primary verification fails due to explicit audience mismatch or validation error
+        if "audience" in str(primary_err).lower() or "token has expired" in str(primary_err).lower():
+            raise ValueError(f"Google ID token validation failed: {str(primary_err)}")
+
         # 2. Secondary verification fallback via Google Tokeninfo endpoint
         try:
             with httpx.Client(timeout=10.0) as client:
@@ -57,6 +65,8 @@ def verify_google_id_token(token_str: str) -> dict:
 
                     if client_id and info.get("aud") != client_id:
                         raise ValueError("Audience mismatch in Google tokeninfo.")
+                    elif env_mode == "production" and not client_id:
+                        raise ValueError("Audience validation required in production.")
 
                     if info.get("email_verified") not in [True, "true", "True"]:
                         raise ValueError("Google email is not verified.")

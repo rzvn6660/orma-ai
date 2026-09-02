@@ -13,13 +13,18 @@ services:
       - ENVIRONMENT=production
       - SQLITE_DB_PATH=/data/orma.db
       - RAG_UPLOAD_DIR=/data/uploads/documents
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-orma_production_secure_secret_key_change_me_1234567890}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - RESEND_FROM=${RESEND_FROM:-onboarding@resend.dev}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - BACKUP_DIR=/data/backups
+      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-6}
+      - BACKUP_S3_BUCKET=${BACKUP_S3_BUCKET:-}
+      - BACKUP_S3_REGION=${BACKUP_S3_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
     volumes:
       - ./data:/data
     healthcheck:

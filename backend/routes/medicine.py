@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import shutil
+import uuid
 from database import get_db
 from services import medicine_service
 from services import scheduler_service
@@ -230,11 +231,22 @@ async def parse_ocr_medicine(file: UploadFile = File(...), current_user: User = 
     """
     UPLOAD_DIR = "temp_uploads"
     os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    raw_filename = file.filename or "image.jpg"
+    ext = os.path.splitext(raw_filename)[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"]:
+        ext = ".jpg"
+    safe_filename = f"{uuid.uuid4().hex}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
     
     try:
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        if len(content) > 20 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File exceeds 20 MB size limit.")
+            
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
             
         raw_text = extract_text_from_image(file_path)
         if not raw_text:
@@ -242,8 +254,13 @@ async def parse_ocr_medicine(file: UploadFile = File(...), current_user: User = 
             
         parsed = await parse_medicine_text(raw_text)
         return {"status": "success", "data": parsed, "raw_text": raw_text}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass

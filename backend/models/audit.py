@@ -7,7 +7,9 @@ class AuditLog(Base, IdentityMixin):
     __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
-    action = Column(String) # e.g. 'read', 'create', 'delete'
-    resource = Column(String) # e.g. 'memory', 'health_record'
-    outcome = Column(String) # e.g. 'success', 'denied'
+    user_id = Column(String, index=True, nullable=True)
+    action = Column(String) # e.g. 'read', 'create', 'delete', 'signup', 'login'
+    resource = Column(String, nullable=True) # e.g. 'memory', 'health_record', 'auth'
+    outcome = Column(String, nullable=True) # e.g. 'success', 'denied'
     reason = Column(String, nullable=True) # e.g. 'insufficient_permissions'
+    details = Column(String, nullable=True)

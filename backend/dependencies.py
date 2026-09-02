@@ -31,16 +31,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         print(f"DEBUG [DB]: User not found for id {user_id}")
         raise credentials_exception
 
-    # Session revocation check: verify token_version matches
+    # Session revocation check: verify token_version matches strictly
     token_ver = payload.get("ver")
-    if token_ver is not None and getattr(user, "token_version", None) is not None:
-        if token_ver != user.token_version:
-            print(f"DEBUG [JWT]: token_version mismatch (token={token_ver}, db={user.token_version}) - session revoked")
+    user_token_ver = getattr(user, "token_version", None)
+    if user_token_ver is not None:
+        if token_ver is None or token_ver != user_token_ver:
+            print(f"DEBUG [JWT]: token_version mismatch (token={token_ver}, db={user_token_ver}) - session revoked")
             raise credentials_exception
     
     # Attach jwt_role to user object temporarily for debugging down the chain
     user.jwt_role = jwt_role
-    print(f"DEBUG [DB]: Found user {user.id} with DB role: '{user.role}'")
     return user
 
 def get_caregiver_user(current_user: User = Depends(get_current_user)):
