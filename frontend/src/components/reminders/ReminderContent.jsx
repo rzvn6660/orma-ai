@@ -10,9 +10,11 @@ export default function ReminderContent({ medicine, user }) {
   const strings = getReminderStrings(reminderLang);
   const rtl = isRTL(reminderLang);
 
-  const isHealthEvent = medicine.event_type !== undefined;
+  const isHealthEvent = medicine.event_type !== undefined && medicine.event_type !== 'medicine';
   const eventType = isHealthEvent ? medicine.event_type : 'medicine';
-  const title = isHealthEvent ? medicine.title : medicine.medicine_name;
+  const rawMedName = (medicine.medicine_name || medicine.title)?.trim();
+  const hasValidName = Boolean(rawMedName);
+  const displayTitle = hasValidName ? rawMedName : (strings.reminderTitle || 'Medicine Reminder');
   const description = isHealthEvent ? medicine.description : medicine.dosage;
 
   const getEventTypeName = (type) => {
@@ -30,8 +32,6 @@ export default function ReminderContent({ medicine, user }) {
     }
   };
 
-  const scheduledText = (strings.scheduledFor || "Scheduled for {time}").replace('{time}', medicine.reminder_time || '');
-
   return (
     <div 
       className={`bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3 sm:mb-4 backdrop-blur-xl shadow-xl text-center space-y-2 relative overflow-hidden shrink-0 ${rtl ? 'rtl' : 'ltr'}`} 
@@ -42,22 +42,33 @@ export default function ReminderContent({ medicine, user }) {
         {getEventTypeName(eventType)}
       </span>
 
-      {/* Primary Focus 1: Medication Name (kept exact) */}
-      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight pt-0.5">
-        {title}
-      </h2>
+      {/* Prominent "Time to take:" Label */}
+      <div className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-blue-400 pt-0.5">
+        {strings.timeToTake || "Time to take:"}
+      </div>
 
-      {/* Primary Focus 2: Dosage (kept exact) */}
+      {/* Prominent Medicine Name with 💊 Icon */}
+      <div className="flex items-center justify-center gap-2.5 py-1 px-2">
+        <span className="text-2xl sm:text-3xl select-none shrink-0" role="img" aria-label="medicine">💊</span>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight break-words">
+          {displayTitle}
+        </h2>
+      </div>
+
+      {/* Verified Dosage (if present) */}
       {description && (
-        <div className="text-lg sm:text-xl font-black text-blue-400 font-mono" dir="ltr">
+        <div className="text-base sm:text-lg font-bold text-slate-300 font-mono" dir="ltr">
           {description}
         </div>
       )}
 
-      {/* Primary Focus 3: Scheduled Time */}
+      {/* Scheduled Time */}
       <div className="flex items-center justify-center gap-1.5 pt-2 text-slate-300 text-xs sm:text-sm font-semibold border-t border-slate-800/80">
         <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
-        <span>{scheduledText}</span>
+        <span>
+          <span className="text-slate-400 font-normal">{strings.scheduledTimeLabel || "Scheduled time:"} </span>
+          <span className="text-white font-bold">{medicine.reminder_time || ''}</span>
+        </span>
       </div>
 
       {medicine.purpose && (

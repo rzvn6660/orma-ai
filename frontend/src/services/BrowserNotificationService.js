@@ -54,13 +54,20 @@ export const BrowserNotificationService = {
       const strings = getReminderStrings(langCode);
 
       const title = strings.browserTitle || '💊 Medication Reminder';
-      const medName = medicine.medicine_name || medicine.title || 'Medicine';
+      const rawMedName = (medicine.medicine_name || medicine.title)?.trim();
+      const hasMedName = Boolean(rawMedName);
+      const medName = hasMedName ? rawMedName : (strings.genericMedicine || 'Medicine');
       const dosage = medicine.dosage || medicine.description || '';
       
-      const body = (strings.browserBody || "It's time to take {medName} {dosage}.")
-        .replace('{medName}', medName)
-        .replace('{dosage}', dosage)
-        .trim();
+      let body = '';
+      if (hasMedName) {
+        body = (strings.browserBody || "It's time to take {medName} {dosage}.")
+          .replace('{medName}', medName)
+          .replace('{dosage}', dosage ? `(${dosage})` : '')
+          .trim();
+      } else {
+        body = strings.reminderHeadline || "It's time to take your medicine.";
+      }
 
       const notification = new Notification(title, {
         body,

@@ -41,7 +41,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "Done",
     tryAgain: "Try Again",
     connectionError: "Couldn't confirm the medication.",
-    purposeLabel: "Purpose: "
+    purposeLabel: "Purpose: ",
+    timeToTake: "Time to take:",
+    timeToTakeMed: "Time to take: {medName}",
+    scheduledTimeLabel: "Scheduled time:",
+    multipleMedicinesLabel: "Medicines to take at this time:",
+    reminderHeadlineForMed: "It's time to take your {medName}.",
+    genericMedicine: "Medicine"
   },
   "ml-IN": {
     greetingMorning: "സുപ്രഭാതം",
@@ -71,10 +77,16 @@ const LOCALIZED_STRINGS = {
     allDoneTitle: "✓ എല്ലാം പൂർത്തിയായി",
     allDoneSubtext: "എല്ലാ മരുന്നുകളും രേഖപ്പെടുത്തി",
     allDoneMessage: "ഈ സമയത്തെ മരുന്നുകളെല്ലാം കഴിച്ചു കഴിഞ്ഞു. മികച്ച പ്രവർത്തനം!",
-    buttonDone: "പൂർത്തിയായി",
+    buttonDone: "പൂർത്തീകരിച്ചു",
     tryAgain: "വീണ്ടും ശ്രമിക്കുക",
     connectionError: "മരുന്ന് സ്ഥിരീകരിക്കാൻ സാധിച്ചില്ല.",
-    purposeLabel: "ഉദ്ദേശ്യം: "
+    purposeLabel: "ഉദ്ദേശ്യം: ",
+    timeToTake: "കഴിക്കേണ്ട മരുന്ന്:",
+    timeToTakeMed: "കഴിക്കേണ്ട മരുന്ന്: {medName}",
+    scheduledTimeLabel: "നിശ്ചിത സമയം:",
+    multipleMedicinesLabel: "ഈ സമയത്ത് കഴിക്കേണ്ട മരുന്നുകൾ:",
+    reminderHeadlineForMed: "{medName} കഴിക്കാനുള്ള സമയമാണ്.",
+    genericMedicine: "മരുന്ന്"
   },
   "hi-IN": {
     greetingMorning: "शुभ प्रभात",
@@ -107,7 +119,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "पूर्ण",
     tryAgain: "फिर से प्रयास करें",
     connectionError: "दवा की पुष्टि नहीं हो सकी।",
-    purposeLabel: "उद्देश्य: "
+    purposeLabel: "उद्देश्य: ",
+    timeToTake: "लेने का समय:",
+    timeToTakeMed: "लेने का समय: {medName}",
+    scheduledTimeLabel: "निर्धारित समय:",
+    multipleMedicinesLabel: "इस समय लेने वाली दवाएं:",
+    reminderHeadlineForMed: "आपकी दवा {medName} लेने का समय हो गया है।",
+    genericMedicine: "दवा"
   },
   "ar-SA": {
     greetingMorning: "صباح الخير",
@@ -140,7 +158,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "تم",
     tryAgain: "حاول مرة أخرى",
     connectionError: "تعذر تأكيد تناول الدواء.",
-    purposeLabel: "الغرض: "
+    purposeLabel: "الغرض: ",
+    timeToTake: "وقت تناول الدواء:",
+    timeToTakeMed: "وقت تناول: {medName}",
+    scheduledTimeLabel: "الوقت المجدول:",
+    multipleMedicinesLabel: "الأدوية المجدولة لهذا الوقت:",
+    reminderHeadlineForMed: "حان وقت تناول دواء {medName}.",
+    genericMedicine: "الدواء"
   },
   "ta-IN": {
     greetingMorning: "காலை வணக்கம்",
@@ -173,7 +197,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "முடிந்தது",
     tryAgain: "மீண்டும் முயல்க",
     connectionError: "மருந்தை உறுதிப்படுத்த முடியவில்லை.",
-    purposeLabel: "நோக்கம்: "
+    purposeLabel: "நோக்கம்: ",
+    timeToTake: "உட்கொள்ள வேண்டிய நேரம்:",
+    timeToTakeMed: "உட்கொள்ள வேண்டிய நேரம்: {medName}",
+    scheduledTimeLabel: "திட்டமிடப்பட்ட நேரம்:",
+    multipleMedicinesLabel: "இந்த நேரத்தில் உட்கொள்ள வேண்டிய மருந்துகள்:",
+    reminderHeadlineForMed: "உங்கள் {medName} மருந்தை உட்கொள்ள வேண்டிய நேரம் இது.",
+    genericMedicine: "மருந்து"
   },
   "te-IN": {
     greetingMorning: "శుభోదయం",
@@ -206,7 +236,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "పూర్తయింది",
     tryAgain: "మళ్ళీ ప్రయత్నించండి",
     connectionError: "మందులను ధృవీకరించలేకపోయాము.",
-    purposeLabel: "ఉద్దేశ్యం: "
+    purposeLabel: "ఉద్దేశ్యం: ",
+    timeToTake: "వేసుకోవాల్సిన సమయం:",
+    timeToTakeMed: "వేసుకోవాల్సిన సమయం: {medName}",
+    scheduledTimeLabel: "షెడ్యూల్ చేసిన సమయం:",
+    multipleMedicinesLabel: "ఈ సమయంలో వేసుకోవాల్సిన మందులు:",
+    reminderHeadlineForMed: "మీ {medName} వేసుకోవాల్సిన సమయం అయింది.",
+    genericMedicine: "మందు"
   },
   "kn-IN": {
     greetingMorning: "ಶುಭ ಪ್ರಭಾತ",
@@ -239,7 +275,13 @@ const LOCALIZED_STRINGS = {
     buttonDone: "ಪೂರ್ಣಗೊಂಡಿದೆ",
     tryAgain: "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
     connectionError: "ಔಷಧಿಯನ್ನು ದೃಢೀಕರಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.",
-    purposeLabel: "ಉದ್ದೇಶ: "
+    purposeLabel: "ಉದ್ದೇಶ: ",
+    timeToTake: "ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯ:",
+    timeToTakeMed: "ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯ: {medName}",
+    scheduledTimeLabel: "ನಿಗದಿತ ಸಮಯ:",
+    multipleMedicinesLabel: "ಈ ಸಮಯದಲ್ಲಿ ತೆಗೆದುಕೊಳ್ಳಬೇಕಾದ ಔಷಧಗಳು:",
+    reminderHeadlineForMed: "ನಿಮ್ಮ {medName} ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯವಾಗಿದೆ.",
+    genericMedicine: "ಔಷಧಿ"
   }
 };
 
@@ -264,6 +306,18 @@ export const getSampleSentence = (langCode) => {
   return strings.reminderHeadline || "It's time to take your medicine.";
 };
 
+export const getLocalizedHeadline = (langCode, medicineName = '') => {
+  const strings = getReminderStrings(langCode);
+  const cleanName = medicineName?.trim();
+  if (cleanName) {
+    if (strings.reminderHeadlineForMed) {
+      return strings.reminderHeadlineForMed.replace('{medName}', cleanName);
+    }
+    return `It's time to take your ${cleanName}.`;
+  }
+  return strings.reminderHeadline || "It's time to take your medicine.";
+};
+
 export const getGreetingText = (langCode) => {
   const hour = new Date().getHours();
   const strings = getReminderStrings(langCode);
@@ -284,60 +338,90 @@ export const getSpokenReminderSentence = ({
   const greeting = getGreetingText(langCode);
   const cfg = getLanguageConfig(langCode);
   const name = userName ? userName.split(' ')[0] : '';
+  const cleanMedName = medicineName?.trim();
+  const hasMedName = Boolean(cleanMedName);
 
   let sentence = "";
 
   if (cfg.code === 'ml-IN') {
     sentence = name ? `${greeting}, ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `ഇത് നിങ്ങളുടെ ${medicineName} ${dosage || ''} കഴിക്കാനുള്ള സമയമാണ്.`;
-      if (purpose) sentence += ` ${purpose} രോഗശമനത്തിനായി.`;
+      if (hasMedName) {
+        sentence += `ഇത് നിങ്ങളുടെ ${cleanMedName} ${dosage || ''} കഴിക്കാനുള്ള സമയമാണ്.`;
+        if (purpose) sentence += ` ${purpose} രോഗശമനത്തിനായി.`;
+      } else {
+        sentence += `നിങ്ങളുടെ മരുന്ന് കഴിക്കാനുള്ള സമയമാണ്.`;
+      }
     } else {
-      sentence += `ഇത് ${medicineName} നുള്ള സമയമാണ്.`;
+      sentence += hasMedName ? `ഇത് ${cleanMedName} നുള്ള സമയമാണ്.` : `ഇത് ആരോഗ്യ സംബന്ധമായ കാര്യത്തിനുള്ള സമയമാണ്.`;
     }
   } else if (cfg.code === 'hi-IN') {
     sentence = name ? `${greeting}, ${name}। ` : `${greeting}। `;
     if (eventType === 'medicine') {
-      sentence += `आपकी दवा ${medicineName} ${dosage || ''} लेने का समय हो गया है।`;
+      if (hasMedName) {
+        sentence += `आपकी दवा ${cleanMedName} ${dosage || ''} लेने का समय हो गया है।`;
+      } else {
+        sentence += `आपकी दवा लेने का समय हो गया है।`;
+      }
     } else {
-      sentence += `यह आपकी ${medicineName} का समय है।`;
+      sentence += hasMedName ? `यह आपकी ${cleanMedName} का समय है।` : `यह आपके स्वास्थ्य कार्यक्रम का समय है।`;
     }
   } else if (cfg.code === 'ar-SA') {
     sentence = name ? `${greeting}، ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `حان وقت تناول دواء ${medicineName} ${dosage || ''}.`;
+      if (hasMedName) {
+        sentence += `حان وقت تناول دواء ${cleanMedName} ${dosage || ''}.`;
+      } else {
+        sentence += `حان وقت تناول الدواء.`;
+      }
     } else {
-      sentence += `هذا تذكير لـ ${medicineName}.`;
+      sentence += hasMedName ? `هذا تذكير لـ ${cleanMedName}.` : `هذا تذكير صحي مجدول.`;
     }
   } else if (cfg.code === 'ta-IN') {
     sentence = name ? `${greeting}, ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `உங்கள் ${medicineName} ${dosage || ''} மருந்தை உட்கொள்ள வேண்டிய நேரம் இது.`;
+      if (hasMedName) {
+        sentence += `உங்கள் ${cleanMedName} ${dosage || ''} மருந்தை உட்கொள்ள வேண்டிய நேரம் இது.`;
+      } else {
+        sentence += `உங்கள் மருந்தை உட்கொள்ள வேண்டிய நேரம் இது.`;
+      }
     } else {
-      sentence += `இது ${medicineName} மருந்திற்கான நினைவூட்டல்.`;
+      sentence += hasMedName ? `இது ${cleanMedName} மருந்திற்கான நினைவூட்டல்.` : `இது திட்டமிடப்பட்ட நினைவூட்டல்.`;
     }
   } else if (cfg.code === 'te-IN') {
     sentence = name ? `${greeting}, ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `మీ ${medicineName} ${dosage || ''} వేసుకోవాల్సిన సమయం అయింది.`;
+      if (hasMedName) {
+        sentence += `మీ ${cleanMedName} ${dosage || ''} వేసుకోవాల్సిన సమయం అయింది.`;
+      } else {
+        sentence += `మీ మందులు వేసుకోవాల్సిన సమయం అయింది.`;
+      }
     } else {
-      sentence += `ఇది ${medicineName} రిమైండర్.`;
+      sentence += hasMedName ? `ఇది ${cleanMedName} రిమైండర్.` : `ఇది షెడ్యూల్ చేసిన రిమైండర్.`;
     }
   } else if (cfg.code === 'kn-IN') {
     sentence = name ? `${greeting}, ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `ನಿಮ್ಮ ${medicineName} ${dosage || ''} ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯವಾಗಿದೆ.`;
+      if (hasMedName) {
+        sentence += `ನಿಮ್ಮ ${cleanMedName} ${dosage || ''} ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯವಾಗಿದೆ.`;
+      } else {
+        sentence += `ನಿಮ್ಮ ಔಷಧಿಯನ್ನು ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯವಾಗಿದೆ.`;
+      }
     } else {
-      sentence += `ಇದು ${medicineName} ಜ್ಞಾಪನೆ.`;
+      sentence += hasMedName ? `ಇದು ${cleanMedName} ಜ್ಞಾಪನೆ.` : `ಇದು ನಿಗದಿತ ಜ್ಞಾಪನೆ.`;
     }
   } else {
     // English default
     sentence = name ? `${greeting}, ${name}. ` : `${greeting}. `;
     if (eventType === 'medicine') {
-      sentence += `It's time to take your ${medicineName} ${dosage || ''}.`;
-      if (purpose) sentence += ` For ${purpose}.`;
+      if (hasMedName) {
+        sentence += `It's time to take your ${cleanMedName} ${dosage || ''}.`;
+        if (purpose) sentence += ` For ${purpose}.`;
+      } else {
+        sentence += `It's time to take your medicine.`;
+      }
     } else {
-      sentence += `This is a reminder for your ${medicineName}.`;
+      sentence += hasMedName ? `This is a reminder for your ${cleanMedName}.` : `This is a scheduled reminder.`;
     }
   }
 

@@ -1,9 +1,9 @@
 import { Pill } from 'lucide-react';
 import BrandLogo from '../BrandLogo';
-import { getGreetingText, getReminderStrings, isRTL } from '../../utils/reminderLocalization';
+import { getGreetingText, getReminderStrings, getLocalizedHeadline, isRTL } from '../../utils/reminderLocalization';
 import { DEFAULT_REMINDER_LANGUAGE } from '../../config/reminderLanguages';
 
-export default function ReminderHeader({ userName, currentCount, totalCount, user }) {
+export default function ReminderHeader({ userName, currentCount, totalCount, user, medicineName = '' }) {
   const prefs = user?.notification_preferences || {};
   const reminderLang = prefs.reminder_language || localStorage.getItem('orma_reminder_language') || DEFAULT_REMINDER_LANGUAGE;
   const strings = getReminderStrings(reminderLang);
@@ -14,6 +14,10 @@ export default function ReminderHeader({ userName, currentCount, totalCount, use
   const progressText = (strings.progressOf || "{current} of {total}")
     .replace('{current}', currentCount)
     .replace('{total}', totalCount);
+
+  const headline = isMulti
+    ? (strings.multipleMedicinesLabel || "Medicines to take at this time:")
+    : getLocalizedHeadline(reminderLang, medicineName);
 
   return (
     <div className={`flex flex-col items-center text-center mb-3 sm:mb-4 space-y-1 sm:space-y-1.5 shrink-0 ${rtl ? 'rtl' : 'ltr'}`} dir={rtl ? 'rtl' : 'ltr'}>
@@ -35,7 +39,7 @@ export default function ReminderHeader({ userName, currentCount, totalCount, use
         {greeting}, {userName || 'Friend'}
       </h1>
       
-      <p className="text-slate-300 text-xs sm:text-sm font-medium">{strings.reminderHeadline}</p>
+      <p className="text-slate-200 text-xs sm:text-sm font-semibold">{headline}</p>
     </div>
   );
 }

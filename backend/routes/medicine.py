@@ -79,7 +79,7 @@ def get_pending_reminders(current_user: User = Depends(get_current_user), db: Se
         return []
         
     if current_user.role == 'elderly':
-        return [r for r in reminders if r.get('elder_id') == current_user.id or r.get('subject_id') == current_user.id or not r.get('elder_id')]
+        return [r for r in reminders if r.get('elder_id') == current_user.id or r.get('subject_id') == current_user.id]
     elif current_user.role == 'caregiver':
         rels = db.query(CaregiverRelationship).filter(
             CaregiverRelationship.caregiver_id == current_user.id,

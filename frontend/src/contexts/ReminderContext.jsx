@@ -67,7 +67,9 @@ export function ReminderProvider({ children }) {
       try {
         const u = await authApi.getMe();
         if (isMounted && u) setCurrentUser(u);
-      } catch (_) {}
+      } catch (_err) {
+        // no-op
+      }
     };
     fetchUser();
 
@@ -113,6 +115,20 @@ export function ReminderProvider({ children }) {
         setNextReminder(upcoming);
       } else {
         setNextReminder(null);
+      }
+
+      // Clear stale, deleted, or taken medicines from active modal
+      if (currentRef.current && !pending.some(m => m.id === currentRef.current.id)) {
+        setCurrentReminder(null);
+      }
+      if (currentGroupRef.current) {
+        const activeIds = new Set(pending.map(m => m.id));
+        const remainingGroupMeds = currentGroupRef.current.medicines.filter(m => activeIds.has(m.id));
+        if (remainingGroupMeds.length === 0) {
+          setCurrentReminderGroup(null);
+        } else if (remainingGroupMeds.length !== currentGroupRef.current.medicines.length) {
+          setCurrentReminderGroup(prev => prev ? ({ ...prev, medicines: remainingGroupMeds }) : null);
+        }
       }
     } catch (err) {
       console.error('[Reminder] Error loading reminders:', err);

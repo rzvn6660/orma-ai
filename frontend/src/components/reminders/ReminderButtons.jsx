@@ -297,7 +297,7 @@ export default function ReminderButtons({
         </button>
       )}
       
-      {/* 3. TERTIARY ACTION: SNOOZE 10 MINUTES */}
+      {/* 3. TERTIARY ACTION: REMIND ME LATER (SNOOZE 10 MINUTES) */}
       <button 
         type="button"
         onClick={() => onSnooze(10)}
@@ -305,7 +305,8 @@ export default function ReminderButtons({
         className="w-full min-h-[42px] h-10 sm:h-11 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-slate-200 border border-slate-700/80 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-blue-400/50 disabled:opacity-50"
       >
         <Clock className="w-4 h-4 text-amber-400" />
-        <span>{snoozeLabel}</span>
+        <span>{strings.buttonRemindLater || "Remind me later"}</span>
+        <span className="text-[11px] text-slate-400 font-normal">({snoozeLabel})</span>
       </button>
       
       {/* 4. QUATERNARY ACTION: REMIND ME LATER / SKIP */}

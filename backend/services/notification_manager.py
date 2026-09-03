@@ -37,20 +37,28 @@ class NotificationManager:
             # Push to the queue for the frontend to consume
             if not any(r['id'] == reminder.id for r in pending_reminders):
                 is_health_event = hasattr(reminder, 'event_type')
-                title = reminder.title if is_health_event else reminder.medicine_name
-                desc = reminder.description if is_health_event else reminder.dosage
+                raw_title = reminder.title if is_health_event else getattr(reminder, 'medicine_name', None)
+                clean_name = raw_title.strip() if (raw_title and isinstance(raw_title, str)) else None
+                desc = reminder.description if is_health_event else getattr(reminder, 'dosage', None)
                 event_type = reminder.event_type if is_health_event else 'medicine'
+                elder_id = getattr(reminder, 'elder_id', None) or getattr(reminder, 'subject_id', None)
+                subject_id = getattr(reminder, 'subject_id', None) or getattr(reminder, 'elder_id', None)
                 
+                msg_en = f"It's time for your {clean_name}." if clean_name else "It's time to take your medicine."
+                msg_ml = f"ഇപ്പോൾ {clean_name} സമയം ആയി." if clean_name else "നിങ്ങളുടെ മരുന്ന് കഴിക്കാനുള്ള സമയമാണ്."
+
                 pending_reminders.append({
                     "id": reminder.id,
                     "event_type": event_type,
-                    "title": title,
+                    "title": clean_name,
                     "description": desc,
-                    "medicine_name": title, # backward compat
-                    "dosage": desc, # backward compat
+                    "medicine_name": clean_name, # Authoritative structured medicine name
+                    "dosage": desc,
                     "scheduled_time": reminder.reminder_time,
-                    "message_en": f"It's time for your {title}.",
-                    "message_ml": f"ഇപ്പോൾ {title} സമയം ആയി."
+                    "elder_id": elder_id,
+                    "subject_id": subject_id,
+                    "message_en": msg_en,
+                    "message_ml": msg_ml
                 })
                 
         # 3. Future Channel Placeholders

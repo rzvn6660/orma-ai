@@ -291,6 +291,7 @@ export default function ReminderModal({ user }) {
               currentCount={1}
               totalCount={1}
               user={user}
+              medicineName={activeMed.medicine_name}
             />
 
             {showVoiceUnavailableStatus && (
@@ -352,6 +353,7 @@ export default function ReminderModal({ user }) {
               currentCount={currentIndex + 1}
               totalCount={medicines.length}
               user={user}
+              medicineName={activeMed?.medicine_name}
             />
 
             {showVoiceUnavailableStatus && (
@@ -464,6 +466,59 @@ export default function ReminderModal({ user }) {
                     <ReminderContent medicine={activeMed} user={user} />
                   </motion.div>
                 </AnimatePresence>
+              </div>
+
+              {/* Prominent Multi-Medicine Schedule List */}
+              <div className="bg-slate-950/70 border border-blue-500/20 rounded-2xl p-3 sm:p-4 text-left space-y-2">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-blue-400 flex items-center justify-between">
+                  <span>{strings.multipleMedicinesLabel || "Medicines to take at this time:"}</span>
+                  <span className="text-slate-400 font-medium">({medicines.length})</span>
+                </div>
+                <div className="space-y-1.5" role="list">
+                  {medicines.map((med, idx) => {
+                    const isCurrent = idx === currentIndex;
+                    const isDone = med.status === 'taken';
+                    const isSnoozed = med.status === 'snoozed';
+                    return (
+                      <div
+                        key={med.id || idx}
+                        onClick={() => setCurrentIndex(idx)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-blue-600/25 border-blue-400 text-white shadow-sm ring-1 ring-blue-400/40'
+                            : isDone
+                            ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
+                            : isSnoozed
+                            ? 'bg-amber-950/30 border-amber-500/30 text-amber-300'
+                            : 'bg-slate-900/60 border-white/5 text-slate-300 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-base shrink-0">💊</span>
+                          <span className="font-extrabold text-sm text-white truncate">
+                            {med.medicine_name || med.title || strings.genericMedicine || 'Medicine'}
+                          </span>
+                          {med.dosage && (
+                            <span className="text-xs text-slate-400 shrink-0 font-mono">({med.dosage})</span>
+                          )}
+                        </div>
+                        <div className="shrink-0 text-xs font-bold">
+                          {isDone ? (
+                            <span className="text-emerald-400 flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" /> Done
+                            </span>
+                          ) : isCurrent ? (
+                            <span className="text-blue-400 uppercase text-[10px] tracking-wider font-extrabold">Active</span>
+                          ) : isSnoozed ? (
+                            <span className="text-amber-400 text-[11px]">Snoozed</span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">View</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Action Buttons for Active Medicine */}
