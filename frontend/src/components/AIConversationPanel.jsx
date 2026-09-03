@@ -7,7 +7,9 @@ import {
   User,
   Heart,
   RotateCcw,
-  VolumeX
+  VolumeX,
+  Send,
+  PhoneOff
 } from 'lucide-react';
 import { tts } from '../services/tts';
 import AICompanionOrb from './AICompanionOrb';
@@ -26,9 +28,17 @@ export default function AIConversationPanel({
   onAskAgain,
   timeContext,
   user,
-  externalError
+  externalError,
+  isConversationMode = false,
+  turnState = 'idle',
+  onStartConversation,
+  onEndConversation,
+  onInterrupt,
+  listenTrigger = 0,
+  onStatusChange
 }) {
   const [replayingMessageId, setReplayingMessageId] = useState(null);
+  const [typedText, setTypedText] = useState('');
   const messagesEndRef = useRef(null);
 
   const handleReplay = (msgId, text, langCode) => {
@@ -44,6 +54,15 @@ export default function AIConversationPanel({
   const handleSuggestionClick = (text) => {
     if (onAskAgain && text) {
       onAskAgain(text);
+    }
+  };
+
+  const handleSendTyped = () => {
+    const trimmed = typedText.trim();
+    if (!trimmed || isTranscribing || isThinking) return;
+    if (onAskAgain) {
+      onAskAgain(trimmed);
+      setTypedText('');
     }
   };
 
@@ -75,6 +94,76 @@ export default function AIConversationPanel({
   return (
     <div className="flex flex-col items-center justify-start relative w-full max-w-3xl mx-auto">
 
+      {/* 0. Continuous Conversation Mode Active Status Banner */}
+      <AnimatePresence>
+        {isConversationMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            className="w-full mb-3 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-950 via-cyan-950/40 to-slate-950 border border-cyan-400/40 shadow-xl flex items-center justify-between gap-3 flex-wrap"
+          >
+            <div className="flex items-center gap-2.5">
+              {isTranscribing || isThinking || turnState === 'thinking' ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin shrink-0" />
+                  <span className="text-xs sm:text-sm font-extrabold text-blue-300">
+                    ORMA is thinking...
+                  </span>
+                </>
+              ) : isSpeaking || turnState === 'speaking' ? (
+                <>
+                  <Volume2 className="w-4 h-4 text-sky-400 animate-pulse shrink-0" />
+                  <span className="text-xs sm:text-sm font-extrabold text-white">
+                    ORMA is speaking · Tap orb to interrupt
+                  </span>
+                </>
+              ) : isListening || turnState === 'listening' ? (
+                <>
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500" />
+                  </span>
+                  <span className="text-xs sm:text-sm font-extrabold text-cyan-300">
+                    Listening... Speak naturally
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                  <span className="text-xs sm:text-sm font-extrabold text-emerald-300">
+                    Your Turn · Speak anytime
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {(isSpeaking || turnState === 'speaking') && onInterrupt && (
+                <button
+                  type="button"
+                  onClick={onInterrupt}
+                  className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-sky-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                >
+                  <VolumeX className="w-3.5 h-3.5" />
+                  <span>Interrupt</span>
+                </button>
+              )}
+              {onEndConversation && (
+                <button
+                  type="button"
+                  onClick={onEndConversation}
+                  className="px-3.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-500/40 text-red-300 hover:text-white text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                >
+                  <PhoneOff className="w-3.5 h-3.5" />
+                  <span>End Conversation</span>
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 1. Hero Voice Interaction Center */}
       <div className="w-full flex flex-col items-center justify-center pt-2 pb-5">
         <AICompanionOrb
@@ -85,6 +174,13 @@ export default function AIConversationPanel({
           isSpeaking={Boolean(isSpeaking)}
           onStopSpeaking={onStopSpeaking}
           externalError={externalError}
+          isConversationMode={isConversationMode}
+          turnState={turnState}
+          onStartConversation={onStartConversation}
+          onEndConversation={onEndConversation}
+          onInterrupt={onInterrupt}
+          listenTrigger={listenTrigger}
+          onStatusChange={onStatusChange}
         />
       </div>
 
@@ -215,6 +311,34 @@ export default function AIConversationPanel({
 
           {/* Auto-scroll bottom anchor */}
           <div ref={messagesEndRef} />
+        </div>
+
+        {/* Typing Input Bar (Preserve typing interaction alongside voice) */}
+        <div className="w-full flex items-center gap-2 pt-3.5 mt-2 border-t border-white/10 shrink-0">
+          <input
+            type="text"
+            value={typedText}
+            onChange={(e) => setTypedText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendTyped();
+              }
+            }}
+            placeholder="Type a message or question to ORMA..."
+            disabled={Boolean(isTranscribing || isThinking)}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/30 transition-all disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={handleSendTyped}
+            disabled={!typedText.trim() || Boolean(isTranscribing || isThinking)}
+            aria-label="Send typed message to ORMA"
+            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-md cursor-pointer shrink-0 active:scale-95"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Send</span>
+          </button>
         </div>
       </div>
 

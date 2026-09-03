@@ -18,6 +18,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import AIConversationPanel from '../components/AIConversationPanel';
+import FloatingTalkControl from '../components/voice/FloatingTalkControl';
 import ConversationsPage from './ConversationsPage';
 import MemoryPage from './MemoryPage';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -36,7 +37,14 @@ export default function OrmaPage({
   handleStopRecording, 
   onClearConversation, 
   handleAskAgain,
-  timeContext
+  timeContext,
+  isConversationMode = false,
+  turnState = 'idle',
+  onStartConversation,
+  onEndConversation,
+  onInterrupt,
+  listenTrigger = 0,
+  onStatusChange
 }) {
   const [activeTab, setActiveTab] = useState('assistant'); // 'assistant', 'history', 'memory'
   const [nextMedicine, setNextMedicine] = useState(null);
@@ -85,6 +93,18 @@ export default function OrmaPage({
   }, []);
 
   const getStatusText = () => {
+    if (isConversationMode) {
+      if (isTranscribing || isThinking || turnState === 'thinking') {
+        return { label: 'Thinking...', color: 'bg-blue-400 animate-pulse', textColor: 'text-blue-300' };
+      }
+      if (isSpeaking || turnState === 'speaking') {
+        return { label: 'ORMA is speaking...', color: 'bg-cyan-400 animate-pulse', textColor: 'text-cyan-300' };
+      }
+      if (isListening || turnState === 'listening') {
+        return { label: 'Listening...', color: 'bg-cyan-400', textColor: 'text-cyan-300' };
+      }
+      return { label: 'Your turn to speak', color: 'bg-emerald-400', textColor: 'text-emerald-400' };
+    }
     if (isListening) return { label: 'Listening...', color: 'bg-cyan-400', textColor: 'text-cyan-300' };
     if (isTranscribing || isThinking) return { label: 'Thinking...', color: 'bg-blue-400 animate-pulse', textColor: 'text-blue-300' };
     if (isSpeaking) return { label: 'ORMA is speaking...', color: 'bg-cyan-400 animate-pulse', textColor: 'text-cyan-300' };
@@ -197,6 +217,13 @@ export default function OrmaPage({
                     onClearConversation={onClearConversation}
                     onAskAgain={handleAskAgain}
                     timeContext={timeContext}
+                    isConversationMode={isConversationMode}
+                    turnState={turnState}
+                    onStartConversation={onStartConversation}
+                    onEndConversation={onEndConversation}
+                    onInterrupt={onInterrupt}
+                    listenTrigger={listenTrigger}
+                    onStatusChange={onStatusChange}
                   />
                 </div>
 
@@ -343,6 +370,18 @@ export default function OrmaPage({
             )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Persistent Floating Talk Control (Visible while scrolling) */}
+        <FloatingTalkControl
+          isConversationMode={isConversationMode}
+          turnState={turnState}
+          isListening={isListening}
+          isProcessing={Boolean(isTranscribing || isThinking)}
+          isSpeaking={isSpeaking}
+          onStartConversation={onStartConversation}
+          onEndConversation={onEndConversation}
+          onInterrupt={onInterrupt}
+        />
 
       </div>
     </ErrorBoundary>

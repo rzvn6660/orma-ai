@@ -18,7 +18,13 @@ export default function AICompanionOrb({
   onStatusChange, 
   isSpeaking,
   onStopSpeaking,
-  externalError
+  externalError,
+  isConversationMode = false,
+  turnState = 'idle',
+  onStartConversation,
+  onEndConversation,
+  onInterrupt,
+  listenTrigger = 0
 }) {
   const [wakeWordActive, setWakeWordActive] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -29,6 +35,12 @@ export default function AICompanionOrb({
   const micSourceRef = useRef(null);
   const animationFrameRef = useRef(null);
   const activeStreamRef = useRef(null);
+
+  // Continuous conversation mode VAD refs
+  const speechDetectedRef = useRef(false);
+  const lastSpeechTimeRef = useRef(Date.now());
+  const isConversationModeRef = useRef(isConversationMode);
+  isConversationModeRef.current = isConversationMode;
 
   // Stop microphone analysis & clean up Web Audio resources
   const stopAudioAnalysis = useCallback(() => {
@@ -83,6 +95,8 @@ export default function AICompanionOrb({
       micSourceRef.current = micSource;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      speechDetectedRef.current = false;
+      lastSpeechTimeRef.current = Date.now();
 
       const checkLevel = () => {
         if (!analyserRef.current) return;
@@ -96,6 +110,23 @@ export default function AICompanionOrb({
         const rms = Math.sqrt(sum / dataArray.length);
         const normalized = Math.min(rms * 2.8, 1.0);
         setAudioLevel(normalized);
+
+        // Continuous Conversation Mode Voice Activity Detection (VAD)
+        if (isConversationModeRef.current) {
+          const now = Date.now();
+          if (normalized > 0.07) {
+            speechDetectedRef.current = true;
+            lastSpeechTimeRef.current = now;
+          } else if (speechDetectedRef.current) {
+            // Speech was detected, check if pause duration threshold reached (1.7s)
+            const silenceElapsed = now - lastSpeechTimeRef.current;
+            if (silenceElapsed > 1700) {
+              speechDetectedRef.current = false;
+              stopRecording();
+              return;
+            }
+          }
+        }
 
         animationFrameRef.current = requestAnimationFrame(checkLevel);
       };
@@ -122,6 +153,40 @@ export default function AICompanionOrb({
   });
 
   const isListening = status === 'recording';
+
+  // React to listenTrigger from parent in continuous mode
+  useEffect(() => {
+    if (listenTrigger > 0 && isConversationMode) {
+      if (status !== 'recording') {
+        speechDetectedRef.current = false;
+        lastSpeechTimeRef.current = Date.now();
+        startRecording();
+      }
+    }
+  }, [listenTrigger, isConversationMode, status, startRecording]);
+
+  // Stop recording if conversation mode ends
+  useEffect(() => {
+    if (!isConversationMode && status === 'recording') {
+      stopRecording();
+      stopAudioAnalysis();
+    }
+  }, [isConversationMode, status, stopRecording, stopAudioAnalysis]);
+
+  // Safety timeout: max utterance 25 seconds
+  useEffect(() => {
+    let safetyTimer = null;
+    if (isListening) {
+      safetyTimer = setTimeout(() => {
+        if (status === 'recording') {
+          stopRecording();
+        }
+      }, 25000);
+    }
+    return () => {
+      if (safetyTimer) clearTimeout(safetyTimer);
+    };
+  }, [isListening, status, stopRecording]);
 
   // Cleanup on component unmount
   useEffect(() => {
@@ -152,12 +217,21 @@ export default function AICompanionOrb({
 
   const handleManualToggle = () => {
     if (isSpeaking) {
-      tts.stop();
-      if (onStopSpeaking) onStopSpeaking();
+      if (onInterrupt) {
+        onInterrupt();
+      } else {
+        tts.stop();
+        if (onStopSpeaking) onStopSpeaking();
+      }
     } else if (isListening) {
+      speechDetectedRef.current = false;
       stopRecording();
     } else {
-      handleWakeWordDetected();
+      if (onStartConversation) {
+        onStartConversation();
+      } else {
+        handleWakeWordDetected();
+      }
     }
   };
 
@@ -178,17 +252,27 @@ export default function AICompanionOrb({
     if (error) {
       const errStr = String(error).toLowerCase();
       if (errStr.includes('permission') || errStr.includes('denied') || errStr.includes('allowed')) {
-        return "Sorry, I couldn't access the microphone.";
+        return "Microphone access was denied. You can still type your questions below.";
       }
       if (errStr.includes('not_readable') || errStr.includes('device') || errStr.includes('audio')) {
-        return "Sorry, I couldn't access the microphone.";
+        return "Microphone device is not readable. Please check your settings.";
       }
-      return "Sorry, I couldn't access the microphone.";
+      return "Microphone access is unavailable.";
     }
     return null;
   };
 
   const activeErrorMessage = getErrorMessage();
+
+  // If permission denied during conversation mode, cleanly end conversation mode
+  useEffect(() => {
+    if (error && isConversationMode) {
+      const errStr = String(error).toLowerCase();
+      if (errStr.includes('permission') || errStr.includes('denied')) {
+        if (onEndConversation) onEndConversation();
+      }
+    }
+  }, [error, isConversationMode, onEndConversation]);
 
   // Determine current active visual state
   const currentState = isListening 
@@ -364,6 +448,19 @@ export default function AICompanionOrb({
                 <RefreshCw className="w-3 h-3" />
                 <span>Try again</span>
               </button>
+            </motion.div>
+          ) : isConversationMode ? (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center gap-1"
+            >
+              <p className="text-lg sm:text-xl font-extrabold text-cyan-300 tracking-tight">
+                {turnState === 'your_turn' ? "Your Turn" : "Conversation Active"}
+              </p>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium max-w-sm">
+                Speak anytime — ORMA is listening.
+              </p>
             </motion.div>
           ) : (
             <motion.div 

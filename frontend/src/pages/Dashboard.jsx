@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import MyHealthPage from './MyHealthPage';
 import OrmaPage from './OrmaPage';
@@ -7,6 +7,7 @@ import SettingsPage from './SettingsPage';
 import EmergencyPage from './EmergencyPage';
 import CaregiverDashboard from './CaregiverDashboard';
 import CalendarPage from './CalendarPage';
+import FloatingTalkControl from '../components/voice/FloatingTalkControl';
 import { healthApi, speechApi, chatApi, emergencyApi, medicineApi, healthPlannerApi } from '../services/api';
 import { useApi } from '../hooks/useApi';
 import { tts } from '../services/tts';
@@ -93,7 +94,91 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [emergencySeverity, setEmergencySeverity] = useState('low');
   
-  const isListening = false;
+  // Phase B: Continuous Conversation Mode State
+  const [conversationMode, setConversationMode] = useState(false);
+  const [turnState, setTurnState] = useState('idle'); // 'idle' | 'listening' | 'thinking' | 'speaking' | 'your_turn' | 'ended'
+  const [isListeningState, setIsListeningState] = useState(false);
+  const [listenTrigger, setListenTrigger] = useState(0);
+
+  const conversationSessionIdRef = useRef(0);
+  const conversationModeRef = useRef(false);
+  const isTurnInProgressRef = useRef(false);
+  const turnTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    conversationModeRef.current = conversationMode;
+  }, [conversationMode]);
+
+  // Handle unmount or route leave
+  useEffect(() => {
+    return () => {
+      conversationSessionIdRef.current += 1;
+      conversationModeRef.current = false;
+      tts.stop();
+      if (turnTimeoutRef.current) {
+        clearTimeout(turnTimeoutRef.current);
+        turnTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleStartConversation = useCallback(() => {
+    if (currentView !== 'orma') {
+      onViewChange('orma');
+    }
+    conversationSessionIdRef.current += 1;
+    if (turnTimeoutRef.current) {
+      clearTimeout(turnTimeoutRef.current);
+      turnTimeoutRef.current = null;
+    }
+    tts.stop();
+    setIsSpeaking(false);
+    isTurnInProgressRef.current = false;
+
+    setConversationMode(true);
+    conversationModeRef.current = true;
+    setTurnState('listening');
+    setListenTrigger(prev => prev + 1);
+  }, [currentView, onViewChange]);
+
+  const handleEndConversation = useCallback(() => {
+    conversationSessionIdRef.current += 1;
+    setConversationMode(false);
+    conversationModeRef.current = false;
+    setTurnState('ended');
+    setIsListeningState(false);
+    isTurnInProgressRef.current = false;
+
+    if (turnTimeoutRef.current) {
+      clearTimeout(turnTimeoutRef.current);
+      turnTimeoutRef.current = null;
+    }
+
+    tts.stop();
+    setIsSpeaking(false);
+
+    setTimeout(() => {
+      setTurnState('idle');
+    }, 400);
+  }, []);
+
+  const handleInterrupt = useCallback(() => {
+    conversationSessionIdRef.current += 1;
+    if (turnTimeoutRef.current) {
+      clearTimeout(turnTimeoutRef.current);
+      turnTimeoutRef.current = null;
+    }
+    tts.stop();
+    setIsSpeaking(false);
+
+    if (conversationModeRef.current) {
+      setTurnState('listening');
+      setListenTrigger(prev => prev + 1);
+    } else {
+      setTurnState('idle');
+    }
+  }, []);
+
   const [languageMode, setLanguageMode] = useState(
     user?.notification_preferences?.voice_language || 
     localStorage.getItem('orma_voice_language') || 
@@ -230,13 +315,34 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
 
   const handleStopRecording = async (blobUrl, blob) => {
     if (!blob) return;
+    if (isTurnInProgressRef.current) return;
+    isTurnInProgressRef.current = true;
+    const currentSession = conversationSessionIdRef.current;
+
+    setTurnState('thinking');
     try {
       const languageParam = languageMode !== 'auto' ? languageMode : undefined;
       const data = await transcribe(blob, languageParam);
-      const userText = data.transcription;
-      const rawDetectedLang = data.detected_language || 'en';
+
+      if (conversationModeRef.current && conversationSessionIdRef.current !== currentSession) {
+        return;
+      }
+
+      const userText = data?.transcription;
+      const rawDetectedLang = data?.detected_language || 'en';
       
       if (!userText || userText.trim() === '') {
+        if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+          setTurnState('your_turn');
+          turnTimeoutRef.current = setTimeout(() => {
+            if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+              setTurnState('listening');
+              setListenTrigger(prev => prev + 1);
+            }
+          }, 450);
+        } else {
+          setTurnState('idle');
+        }
         return;
       }
 
@@ -271,8 +377,24 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
             tts.speak(alertMsg.text, {
               langCode: 'en-IN',
               onStart: () => setIsSpeaking(true),
-              onEnd: () => setIsSpeaking(false),
-              onError: () => setIsSpeaking(false)
+              onEnd: () => {
+                setIsSpeaking(false);
+                if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+                  setTurnState('listening');
+                  setListenTrigger(prev => prev + 1);
+                } else {
+                  setTurnState('idle');
+                }
+              },
+              onError: () => {
+                setIsSpeaking(false);
+                if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+                  setTurnState('listening');
+                  setListenTrigger(prev => prev + 1);
+                } else {
+                  setTurnState('idle');
+                }
+              }
             });
           } catch (ttsErr) {
             console.warn("[TTS WARN] Emergency speech alert failed:", ttsErr);
@@ -285,6 +407,11 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
 
       const userIdToPass = user?.id || user?.email || 'default_user';
       const chatData = await sendMessage(userText, userIdToPass, languageMode, effectiveVoiceLang, messages);
+
+      if (conversationModeRef.current && conversationSessionIdRef.current !== currentSession) {
+        return;
+      }
+
       const responseText = chatData?.response || "I'm here to help you.";
       
       const aiMsg = {
@@ -298,16 +425,50 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       // 1. Always display text response first
       setMessages(prev => [...prev, aiMsg]);
 
-      // 2. Decoupled TTS: Speech failure must NEVER swallow or destroy text response
+      // 2. Decoupled TTS: Automatic turn handoff when speech ends
       try {
         tts.speak(responseText, {
           langCode: effectiveVoiceLang,
-          onStart: () => setIsSpeaking(true),
-          onEnd: () => setIsSpeaking(false),
-          onError: () => setIsSpeaking(false)
+          onStart: () => {
+            if (!conversationModeRef.current || conversationSessionIdRef.current === currentSession) {
+              setIsSpeaking(true);
+              setTurnState('speaking');
+            }
+          },
+          onEnd: () => {
+            setIsSpeaking(false);
+            if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+              setTurnState('your_turn');
+              turnTimeoutRef.current = setTimeout(() => {
+                if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+                  setTurnState('listening');
+                  setListenTrigger(prev => prev + 1);
+                }
+              }, 450);
+            } else {
+              setTurnState('idle');
+            }
+          },
+          onError: (err) => {
+            if (err?.error === 'interrupted' || err?.error === 'canceled') {
+              return;
+            }
+            setIsSpeaking(false);
+            if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+              setTurnState('listening');
+              setListenTrigger(prev => prev + 1);
+            } else {
+              setTurnState('idle');
+            }
+          }
         });
       } catch (ttsErr) {
         console.warn("[TTS WARN] Text-to-speech failed or blocked by autoplay:", ttsErr);
+        setIsSpeaking(false);
+        if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+          setTurnState('listening');
+          setListenTrigger(prev => prev + 1);
+        }
       }
 
     } catch (error) {
@@ -319,11 +480,24 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
+      if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+        setTurnState('listening');
+        setListenTrigger(prev => prev + 1);
+      } else {
+        setTurnState('idle');
+      }
+    } finally {
+      isTurnInProgressRef.current = false;
     }
   };
 
   const handleAskAgain = async (text) => {
     if (!text) return;
+    if (isTurnInProgressRef.current) return;
+    isTurnInProgressRef.current = true;
+    const currentSession = conversationSessionIdRef.current;
+
+    setTurnState('thinking');
     try {
       const effectiveVoiceLang = languageMode !== 'auto' 
         ? languageMode 
@@ -339,6 +513,11 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
 
       const userIdToPass = user?.id || user?.email || 'default_user';
       const chatData = await sendMessage(text, userIdToPass, languageMode, effectiveVoiceLang, messages);
+
+      if (conversationModeRef.current && conversationSessionIdRef.current !== currentSession) {
+        return;
+      }
+
       const responseText = chatData?.response || "I'm here to help you.";
 
       const aiMsg = {
@@ -351,16 +530,50 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       // Display text response first
       setMessages(prev => [...prev, aiMsg]);
 
-      // Decoupled TTS
+      // Decoupled TTS & Turn Loop
       try {
         tts.speak(responseText, {
           langCode: effectiveVoiceLang,
-          onStart: () => setIsSpeaking(true),
-          onEnd: () => setIsSpeaking(false),
-          onError: () => setIsSpeaking(false)
+          onStart: () => {
+            if (!conversationModeRef.current || conversationSessionIdRef.current === currentSession) {
+              setIsSpeaking(true);
+              setTurnState('speaking');
+            }
+          },
+          onEnd: () => {
+            setIsSpeaking(false);
+            if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+              setTurnState('your_turn');
+              turnTimeoutRef.current = setTimeout(() => {
+                if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+                  setTurnState('listening');
+                  setListenTrigger(prev => prev + 1);
+                }
+              }, 450);
+            } else {
+              setTurnState('idle');
+            }
+          },
+          onError: (err) => {
+            if (err?.error === 'interrupted' || err?.error === 'canceled') {
+              return;
+            }
+            setIsSpeaking(false);
+            if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+              setTurnState('listening');
+              setListenTrigger(prev => prev + 1);
+            } else {
+              setTurnState('idle');
+            }
+          }
         });
       } catch (ttsErr) {
         console.warn("[TTS WARN] Text-to-speech failed:", ttsErr);
+        setIsSpeaking(false);
+        if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+          setTurnState('listening');
+          setListenTrigger(prev => prev + 1);
+        }
       }
     } catch (error) {
       console.error("[ASK AGAIN PIPELINE ERROR]:", error?.response?.data || error?.message || error);
@@ -371,6 +584,14 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
+      if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+        setTurnState('listening');
+        setListenTrigger(prev => prev + 1);
+      } else {
+        setTurnState('idle');
+      }
+    } finally {
+      isTurnInProgressRef.current = false;
     }
   };
 
@@ -400,10 +621,13 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       <DashboardLayout currentView="orma" onViewChange={onViewChange} user={user} onLogout={onLogout}>
         <OrmaPage
           user={user}
-          onBack={() => onViewChange('dashboard')}
+          onBack={() => {
+            handleEndConversation();
+            onViewChange('dashboard');
+          }}
           onViewChange={onViewChange}
           messages={messages}
-          isListening={isListening}
+          isListening={isListeningState}
           isSpeaking={isSpeaking}
           onStopSpeaking={() => setIsSpeaking(false)}
           isTranscribing={isTranscribing}
@@ -412,6 +636,13 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
           onClearConversation={() => setMessages([])}
           handleAskAgain={handleAskAgain}
           timeContext={timeContext}
+          isConversationMode={conversationMode}
+          turnState={turnState}
+          onStartConversation={handleStartConversation}
+          onEndConversation={handleEndConversation}
+          onInterrupt={handleInterrupt}
+          listenTrigger={listenTrigger}
+          onStatusChange={(listening) => setIsListeningState(listening)}
         />
       </DashboardLayout>
     );
@@ -506,7 +737,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
             <div className="flex items-center gap-3 shrink-0 relative z-10">
               <button 
                 type="button"
-                onClick={() => onViewChange('orma')}
+                onClick={handleStartConversation}
                 className="px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-base shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 border border-blue-400/30"
               >
                 <div className="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-pulse" />
@@ -755,6 +986,18 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
 
           </div>
         </div>
+
+        {/* Floating Talk Control on Dashboard view */}
+        <FloatingTalkControl
+          isConversationMode={conversationMode}
+          turnState={turnState}
+          isListening={isListeningState}
+          isProcessing={Boolean(isTranscribing || isThinking)}
+          isSpeaking={isSpeaking}
+          onStartConversation={handleStartConversation}
+          onEndConversation={handleEndConversation}
+          onInterrupt={handleInterrupt}
+        />
       </DashboardLayout>
     </ErrorBoundary>
   );
