@@ -14,7 +14,8 @@ import {
   Calendar as CalendarIcon,
   ShieldCheck,
   CheckCircle2,
-  Heart
+  Heart,
+  ArrowLeft
 } from 'lucide-react';
 import AIConversationPanel from '../components/AIConversationPanel';
 import ConversationsPage from './ConversationsPage';
@@ -23,7 +24,9 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { medicineApi, healthPlannerApi, ocmeMemoryApi } from '../services/api';
 
 export default function OrmaPage({ 
-  user, 
+  user,
+  onBack,
+  onViewChange,
   messages = [], 
   isListening, 
   isSpeaking, 
@@ -95,14 +98,25 @@ export default function OrmaPage({
       <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 pb-12">
         
         {/* 1. Compact Header Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/70 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-white/10 shadow-lg">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-md shrink-0">
-              <Brain className="w-6 h-6" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/70 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-lg">
+          <div className="flex items-center gap-3 sm:gap-3.5">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label="Back to Dashboard"
+                className="p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-white/10 flex items-center gap-2 text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            )}
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-md shrink-0">
+              <Brain className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                <h1 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight">
                   ORMA AI Companion
                 </h1>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-950/70 border border-white/10 ${status.textColor}`}>

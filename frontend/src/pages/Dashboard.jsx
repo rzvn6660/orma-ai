@@ -400,6 +400,8 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       <DashboardLayout currentView="orma" onViewChange={onViewChange} user={user} onLogout={onLogout}>
         <OrmaPage
           user={user}
+          onBack={() => onViewChange('dashboard')}
+          onViewChange={onViewChange}
           messages={messages}
           isListening={isListening}
           isSpeaking={isSpeaking}

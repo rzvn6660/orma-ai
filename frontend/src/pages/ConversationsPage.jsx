@@ -26,9 +26,9 @@ export default function ConversationsPage({ messages = [], user }) {
             </p>
           </div>
         ) : (
-          safeMessages.map((msg) => (
+          safeMessages.map((msg, idx) => (
             <motion.div 
-              key={msg.id || Math.random()}
+              key={msg.id || `hist_${idx}_${msg.sender}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`flex items-start gap-3.5 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
