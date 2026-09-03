@@ -69,4 +69,18 @@ class ConversationManager:
     def get_entities(self, user_id: str) -> dict:
         return self._get_or_create_session(user_id).get("entities", {})
 
+    def save_interaction_context(self, user_id: str, context: dict):
+        """Saves structured interaction context (e.g. medications discussed) for follow-up resolution."""
+        session = self._get_or_create_session(user_id)
+        session["last_interaction"] = context
+
+    def get_last_interaction_context(self, user_id: str) -> Optional[dict]:
+        """Retrieves structured interaction context from the previous turn."""
+        return self._get_or_create_session(user_id).get("last_interaction")
+
+    def clear_session(self, user_id: str):
+        """Resets conversation history and interaction context for a user."""
+        if user_id in self.sessions:
+            del self.sessions[user_id]
+
 conversation_manager = ConversationManager()

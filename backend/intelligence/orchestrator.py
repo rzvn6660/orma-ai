@@ -21,6 +21,7 @@ from intelligence.agent_router import agent_router
 from llm.ai_manager import ai_manager
 from rag.rag_service import rag_service
 from rag.grounded_synthesizer import get_empty_retrieval_response
+from intelligence.conversational_reference_resolver import conversational_reference_resolver
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,49 @@ class IntelligenceOrchestrator:
         llm_health = await ai_manager.check_health()
         
         # 2. Maintain Conversation History & Multi-turn Context
-        history = conversation_manager.get_history(user_id)
+        history = list(conversation_manager.get_history(user_id))
         conversation_manager.add_message(user_id, "user", text)
+
+        # 2b. Conversational Reference & Follow-Up Resolution (Phase A)
+        followup_res = conversational_reference_resolver.resolve(
+            text=text,
+            user_id=user_id,
+            db=db,
+            history=history,
+            language=language
+        )
+        if followup_res.get("is_followup") and followup_res.get("direct_response"):
+            response_text = followup_res["direct_response"]
+            conversation_manager.add_message(user_id, "assistant", response_text)
+            if followup_res.get("referenced_medications"):
+                conversation_manager.save_interaction_context(user_id, {
+                    "intent": followup_res.get("intent", "FOLLOW_UP"),
+                    "medications": followup_res["referenced_medications"],
+                    "response_text": response_text
+                })
+            t3 = time.perf_counter()
+            t4 = t3
+            t5 = t4
+            t6 = t5
+            t7 = t6
+            t8 = time.perf_counter()
+            t9 = t8
+            t10 = t9
+            return {
+                "response": response_text,
+                "intent": followup_res.get("intent", "FOLLOW_UP"),
+                "execution_mode": ExecutionMode.TOOL_ONLY,
+                "llm_called": False,
+                "llm_required": False,
+                "tool_required": True,
+                "tool_name": "conversational_reference_resolver",
+                "language": language,
+                "gen_meta": {"resolver": "conversational_reference"},
+                "timestamps": {
+                    "T0": t0, "T1": t1, "T2": t2, "T3": t3, "T4": t4,
+                    "T5": t5, "T6": t6, "T7": t7, "T8": t8, "T9": t9, "T10": t10
+                }
+            }
 
         # 3. Context Resolution
         user_obj = db.query(User).filter(User.id == str(user_id)).first()
@@ -221,6 +263,13 @@ class IntelligenceOrchestrator:
             if is_next_med_query or any(w in low_text for w in ["next", "upcoming", "അടുത്ത", "अगली", "التالي"]):
                 next_info = healthcare_tools.get_next_medication(db, target_uid, query_text=text, language=language)
                 response_text = next_info["response_text"]
+                if next_info.get("medication"):
+                    conversation_manager.save_interaction_context(user_id, {
+                        "intent": "MEDICATION_SCHEDULE",
+                        "tool": "next_medication",
+                        "medications": [next_info["medication"]],
+                        "response_text": response_text
+                    })
             else:
                 meds = tool_result.get("medications", [])
                 pending_meds = [m for m in meds if not m.get("taken")]
@@ -231,6 +280,13 @@ class IntelligenceOrchestrator:
                     response_text = f"All scheduled medicines for {time_period} have already been taken."
                 else:
                     response_text = f"You have no medicines scheduled for {time_period}."
+                if meds:
+                    conversation_manager.save_interaction_context(user_id, {
+                        "intent": "MEDICATION_SCHEDULE",
+                        "tool": selected_tool_name or "medication_schedule",
+                        "medications": meds,
+                        "response_text": response_text
+                    })
             conversation_manager.add_message(user_id, "assistant", response_text)
             t6 = t5
             t7 = t6

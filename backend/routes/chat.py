@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from database import get_db
 from intelligence.orchestrator import orchestrator
+from intelligence.conversation_manager import conversation_manager
 from dependencies import get_current_context
 
 router = APIRouter()
@@ -13,6 +14,7 @@ class ChatRequest(BaseModel):
     user_id: Optional[str] = None
     language_preference: str = "auto"
     detected_language: str = "en"
+    history: Optional[List[Dict[str, Any]]] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -33,6 +35,14 @@ async def send_message(request_payload: ChatRequest, request: Request, db: Sessi
         active_subject_id = subject["id"] if subject else None
 
         user_id = str(actor.id) if actor else (request_payload.user_id or "default_user")
+
+        # Sync recent history from client if available and session history is empty
+        if request_payload.history and isinstance(request_payload.history, list):
+            existing = conversation_manager.get_history(user_id)
+            if not existing:
+                for h_item in request_payload.history:
+                    if isinstance(h_item, dict) and "role" in h_item and "content" in h_item:
+                        conversation_manager.add_message(user_id, h_item["role"], h_item["content"])
 
         reply = await orchestrator.process_request(
             text=request_payload.message,

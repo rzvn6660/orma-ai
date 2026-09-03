@@ -284,7 +284,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       }
 
       const userIdToPass = user?.id || user?.email || 'default_user';
-      const chatData = await sendMessage(userText, userIdToPass, languageMode, effectiveVoiceLang);
+      const chatData = await sendMessage(userText, userIdToPass, languageMode, effectiveVoiceLang, messages);
       const responseText = chatData?.response || "I'm here to help you.";
       
       const aiMsg = {
@@ -338,7 +338,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       setMessages(prev => [...prev, newMsg]);
 
       const userIdToPass = user?.id || user?.email || 'default_user';
-      const chatData = await sendMessage(text, userIdToPass, languageMode, effectiveVoiceLang);
+      const chatData = await sendMessage(text, userIdToPass, languageMode, effectiveVoiceLang, messages);
       const responseText = chatData?.response || "I'm here to help you.";
 
       const aiMsg = {

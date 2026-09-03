@@ -44,13 +44,20 @@ export const speechApi = {
 };
 
 export const chatApi = {
-  sendMessage: async (text, userId = 'default_user', languagePref = 'auto', detectedLang = 'en') => {
-    const { data } = await api.post('/api/chat', {
+  sendMessage: async (text, userId = 'default_user', languagePref = 'auto', detectedLang = 'en', history = []) => {
+    const payload = {
       message: text,
       user_id: userId,
       language_preference: languagePref,
       detected_language: detectedLang
-    });
+    };
+    if (Array.isArray(history) && history.length > 0) {
+      payload.history = history.slice(-6).map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
+      }));
+    }
+    const { data } = await api.post('/api/chat', payload);
     return data;
   }
 };
