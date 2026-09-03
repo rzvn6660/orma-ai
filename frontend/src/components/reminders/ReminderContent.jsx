@@ -34,29 +34,29 @@ export default function ReminderContent({ medicine, user }) {
 
   return (
     <div 
-      className={`bg-slate-900/90 border border-slate-800 rounded-3xl p-6 mb-5 backdrop-blur-xl shadow-xl text-center space-y-3 relative overflow-hidden ${rtl ? 'rtl' : 'ltr'}`} 
+      className={`bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3 sm:mb-4 backdrop-blur-xl shadow-xl text-center space-y-2 relative overflow-hidden shrink-0 ${rtl ? 'rtl' : 'ltr'}`} 
       dir={rtl ? 'rtl' : 'ltr'}
     >
       {/* Category Tag */}
-      <span className="text-[11px] font-extrabold uppercase tracking-widest text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20 inline-block">
+      <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20 inline-block">
         {getEventTypeName(eventType)}
       </span>
 
       {/* Primary Focus 1: Medication Name (kept exact) */}
-      <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none pt-1">
+      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight pt-0.5">
         {title}
       </h2>
 
       {/* Primary Focus 2: Dosage (kept exact) */}
       {description && (
-        <div className="text-xl sm:text-2xl font-black text-blue-400 font-mono" dir="ltr">
+        <div className="text-lg sm:text-xl font-black text-blue-400 font-mono" dir="ltr">
           {description}
         </div>
       )}
 
       {/* Primary Focus 3: Scheduled Time */}
-      <div className="flex items-center justify-center gap-2 pt-3 text-slate-300 text-sm font-semibold border-t border-slate-800/80">
-        <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+      <div className="flex items-center justify-center gap-1.5 pt-2 text-slate-300 text-xs sm:text-sm font-semibold border-t border-slate-800/80">
+        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
         <span>{scheduledText}</span>
       </div>
 

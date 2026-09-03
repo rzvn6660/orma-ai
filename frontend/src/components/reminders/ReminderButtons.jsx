@@ -31,7 +31,9 @@ export default function ReminderButtons({
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch (_) {}
+        } catch (e) {
+          console.debug('[VoiceRecognition] Stop cleanup:', e);
+        }
       }
     };
   }, []);
@@ -48,7 +50,7 @@ export default function ReminderButtons({
 
     try {
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch (_) {}
+        try { recognitionRef.current.stop(); } catch (e) { console.debug(e); }
       }
 
       const recognition = new SpeechRecognition();
@@ -117,7 +119,7 @@ export default function ReminderButtons({
 
   const stopVoiceRecognition = () => {
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (_) {}
+      try { recognitionRef.current.stop(); } catch (e) { console.debug(e); }
     }
     setVoiceState(null);
   };
@@ -192,10 +194,10 @@ export default function ReminderButtons({
     .replace('{mins}', 10);
 
   return (
-    <div className={`flex flex-col gap-3.5 w-full ${rtl ? 'rtl' : 'ltr'}`} dir={rtl ? 'rtl' : 'ltr'}>
+    <div className={`flex flex-col gap-2.5 sm:gap-3 w-full shrink-0 ${rtl ? 'rtl' : 'ltr'}`} dir={rtl ? 'rtl' : 'ltr'}>
       {/* API ERROR BANNER */}
       {apiError && (
-        <div className="p-3.5 rounded-2xl bg-red-950/70 border border-red-500/40 text-red-200 text-xs font-semibold text-center flex items-center justify-between gap-3 animate-fade-in">
+        <div className="p-3 rounded-2xl bg-red-950/70 border border-red-500/40 text-red-200 text-xs font-semibold text-center flex items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
             <span>{strings.connectionError || "Couldn't confirm the medication."}</span>
@@ -215,16 +217,16 @@ export default function ReminderButtons({
         type="button"
         onClick={onMarkTaken}
         disabled={loading || Boolean(voiceState)}
-        className="w-full min-h-[56px] h-16 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-2xl font-black text-xl tracking-tight transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 border border-emerald-500/50 cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-emerald-400 disabled:opacity-50"
+        className="w-full min-h-[52px] h-14 sm:h-15 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white rounded-2xl font-black text-lg sm:text-xl tracking-tight transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 border border-emerald-500/50 cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-emerald-400 disabled:opacity-50"
       >
         {loading ? (
           <>
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
             <span>{strings.voiceChecking || "Confirming..."}</span>
           </>
         ) : (
           <>
-            <Check className="w-7 h-7 stroke-[3]" />
+            <Check className="w-6 h-6 sm:w-7 sm:h-7 stroke-[3]" />
             <span>{strings.buttonTookIt}</span>
           </>
         )}
@@ -232,7 +234,7 @@ export default function ReminderButtons({
 
       {/* 2. VOICE CONFIRMATION FLOW */}
       {voiceState === 'listening' ? (
-        <div className="p-4 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 text-center space-y-2 backdrop-blur-md animate-fade-in">
+        <div className="p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 text-center space-y-2 backdrop-blur-md animate-fade-in">
           <div className="flex items-center justify-center gap-2 text-cyan-300 font-black text-sm">
             <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping inline-block" />
             <Mic className="w-4 h-4 text-cyan-400 animate-bounce" />
@@ -244,23 +246,23 @@ export default function ReminderButtons({
           <button
             type="button"
             onClick={stopVoiceRecognition}
-            className="px-3 py-1.5 rounded-xl bg-slate-900 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 cursor-pointer"
+            className="px-3 py-1 rounded-xl bg-slate-900 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 cursor-pointer"
           >
             {strings.buttonCancel}
           </button>
         </div>
       ) : voiceState === 'confirming' ? (
-        <div className="p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-center text-xs font-bold text-cyan-200 flex items-center justify-center gap-2">
+        <div className="p-3 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-center text-xs font-bold text-cyan-200 flex items-center justify-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
           <span>{strings.voiceChecking}</span>
         </div>
       ) : voiceState === 'success' ? (
-        <div className="p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2">
+        <div className="p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-2">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>{successText}</span>
         </div>
       ) : voiceState === 'error' ? (
-        <div className="p-3.5 rounded-2xl bg-slate-900 border border-amber-500/40 text-center space-y-2.5 animate-fade-in">
+        <div className="p-3 rounded-2xl bg-slate-900 border border-amber-500/40 text-center space-y-2 animate-fade-in">
           <p className="text-xs font-bold text-amber-300">
             {voiceErrorMessage || "Sorry, I didn't catch that."}
           </p>
@@ -268,7 +270,7 @@ export default function ReminderButtons({
             <button
               type="button"
               onClick={startVoiceRecognition}
-              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>{strings.tryAgain || "Try Again"}</span>
@@ -276,7 +278,7 @@ export default function ReminderButtons({
             <button
               type="button"
               onClick={() => setVoiceState(null)}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+              className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
             >
               {strings.buttonCancel}
             </button>
@@ -288,9 +290,9 @@ export default function ReminderButtons({
           type="button"
           onClick={startVoiceRecognition}
           disabled={loading}
-          className="w-full min-h-[48px] h-13 bg-cyan-950/50 hover:bg-cyan-900/60 active:scale-[0.99] text-cyan-300 border border-cyan-500/40 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-cyan-400/50 disabled:opacity-50"
+          className="w-full min-h-[44px] h-11 sm:h-12 bg-cyan-950/50 hover:bg-cyan-900/60 active:scale-[0.99] text-cyan-300 border border-cyan-500/40 rounded-2xl font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2.5 shadow-md cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-cyan-400/50 disabled:opacity-50"
         >
-          <Mic className="w-5 h-5 text-cyan-400" />
+          <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
           <span>{strings.buttonConfirmVoice}</span>
         </button>
       )}
@@ -300,7 +302,7 @@ export default function ReminderButtons({
         type="button"
         onClick={() => onSnooze(10)}
         disabled={loading}
-        className="w-full min-h-[48px] h-12 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-slate-200 border border-slate-700/80 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-blue-400/50 disabled:opacity-50"
+        className="w-full min-h-[42px] h-10 sm:h-11 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-slate-200 border border-slate-700/80 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-blue-400/50 disabled:opacity-50"
       >
         <Clock className="w-4 h-4 text-amber-400" />
         <span>{snoozeLabel}</span>
@@ -311,7 +313,7 @@ export default function ReminderButtons({
         type="button"
         onClick={() => setShowSkipConfirm(true)}
         disabled={loading}
-        className="py-2 text-center text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer outline-none focus-visible:underline disabled:opacity-50"
+        className="py-1 text-center text-slate-400 hover:text-slate-200 text-xs font-semibold transition-colors cursor-pointer outline-none focus-visible:underline disabled:opacity-50"
       >
         {strings.buttonRemindLater}
       </button>

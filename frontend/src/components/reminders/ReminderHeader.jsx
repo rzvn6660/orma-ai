@@ -16,13 +16,13 @@ export default function ReminderHeader({ userName, currentCount, totalCount, use
     .replace('{total}', totalCount);
 
   return (
-    <div className={`flex flex-col items-center text-center mb-5 space-y-2 ${rtl ? 'rtl' : 'ltr'}`} dir={rtl ? 'rtl' : 'ltr'}>
-      <div className="mb-2">
-        <BrandLogo layout="vertical" className="h-12" textClassName="text-base" textColor="text-white" accentColor="text-blue-400" />
+    <div className={`flex flex-col items-center text-center mb-3 sm:mb-4 space-y-1 sm:space-y-1.5 shrink-0 ${rtl ? 'rtl' : 'ltr'}`} dir={rtl ? 'rtl' : 'ltr'}>
+      <div className="mb-0.5">
+        <BrandLogo layout="vertical" className="h-8 sm:h-9" textClassName="text-sm" textColor="text-white" accentColor="text-blue-400" />
       </div>
       
-      <div className="px-3.5 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 font-extrabold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-sm">
-        <Pill className="w-4 h-4 text-blue-400" />
+      <div className="px-3 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 font-extrabold text-[11px] tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-sm">
+        <Pill className="w-3.5 h-3.5 text-blue-400" />
         <span>{strings.reminderTitle}</span>
         {isMulti && (
           <span className="text-slate-300 font-bold border-l border-blue-500/30 pl-2">
@@ -31,11 +31,11 @@ export default function ReminderHeader({ userName, currentCount, totalCount, use
         )}
       </div>
 
-      <h1 id="reminder-title" className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+      <h1 id="reminder-title" className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
         {greeting}, {userName || 'Friend'}
       </h1>
       
-      <p className="text-slate-300 text-sm font-medium">{strings.reminderHeadline}</p>
+      <p className="text-slate-300 text-xs sm:text-sm font-medium">{strings.reminderHeadline}</p>
     </div>
   );
 }

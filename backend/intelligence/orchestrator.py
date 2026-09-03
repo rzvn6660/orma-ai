@@ -145,7 +145,8 @@ class IntelligenceOrchestrator:
                 med_context_lines.append(f"\n[STRUCTURED MEDICATION SCHEDULE FOR TIME PERIOD: {time_period.upper()}]")
                 if meds:
                     for m in meds:
-                        med_context_lines.append(f"- {m['name']} ({m['dosage']}): Scheduled at {m['scheduled_time']}")
+                        stat = m.get('status', 'TAKEN' if m.get('taken') else 'PENDING')
+                        med_context_lines.append(f"- {m['name']} ({m['dosage']}): Scheduled at {m['scheduled_time']} [Status: {stat}]")
                 else:
                     med_context_lines.append(f"- No medicines scheduled for {time_period}.")
 
@@ -217,12 +218,19 @@ class IntelligenceOrchestrator:
 
         elif exec_mode == ExecutionMode.TOOL_ONLY:
             logger.info(f"[ORMA BRAIN req_{req_id}] Executing TOOL_ONLY direct database response for query '{text}'")
-            meds = tool_result.get("medications", [])
-            if meds:
-                next_m = meds[0]
-                response_text = f"Your next medicine is {next_m['name']} ({next_m['dosage']}) scheduled for {next_m['scheduled_time']}."
+            if is_next_med_query or any(w in low_text for w in ["next", "upcoming", "അടുത്ത", "अगली", "التالي"]):
+                next_info = healthcare_tools.get_next_medication(db, target_uid, query_text=text, language=language)
+                response_text = next_info["response_text"]
             else:
-                response_text = "You have no medicines currently scheduled in your records."
+                meds = tool_result.get("medications", [])
+                pending_meds = [m for m in meds if not m.get("taken")]
+                if pending_meds:
+                    next_m = pending_meds[0]
+                    response_text = f"Your scheduled medicine for {time_period} is {next_m['name']} ({next_m['dosage']}) scheduled for {next_m['scheduled_time']}."
+                elif meds:
+                    response_text = f"All scheduled medicines for {time_period} have already been taken."
+                else:
+                    response_text = f"You have no medicines scheduled for {time_period}."
             conversation_manager.add_message(user_id, "assistant", response_text)
             t6 = t5
             t7 = t6

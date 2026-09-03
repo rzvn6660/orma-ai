@@ -107,6 +107,17 @@ export default function ReminderModal({ user }) {
     }
   }, [currentReminderGroup?.sessionId, currentReminder?.id]);
 
+  // Lock background page scroll when reminder modal is active
+  useEffect(() => {
+    if (showModal && medicines.length > 0) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [showModal, medicines.length]);
+
   // Caregiver check: suppress normal medication reminder modal if caregiver preference is OFF (default OFF)
   if (user?.role === 'caregiver' && user?.notification_preferences?.medication_reminder_notifications !== true) {
     return null;
@@ -272,7 +283,7 @@ export default function ReminderModal({ user }) {
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.2 }}
-            className={`relative w-full max-w-md bg-[#0B132B] border-2 border-blue-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.6)] z-10 text-white outline-none ${rtl ? 'rtl' : 'ltr'}`}
+            className={`relative w-full max-w-md max-h-[min(calc(100dvh-1.5rem),720px)] sm:max-h-[min(calc(100dvh-2rem),720px)] bg-[#0B132B] border-2 border-blue-500/30 rounded-3xl p-4 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] z-10 text-white outline-none overflow-y-auto custom-scrollbar flex flex-col my-auto ${rtl ? 'rtl' : 'ltr'}`}
             dir={rtl ? 'rtl' : 'ltr'}
           >
             <ReminderHeader 
@@ -323,7 +334,7 @@ export default function ReminderModal({ user }) {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.96, opacity: 0, y: 15 }}
           transition={{ duration: 0.2 }}
-          className={`relative w-full max-w-lg bg-[#0B132B] border-2 border-blue-500/40 rounded-3xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.6)] z-10 text-white space-y-6 outline-none ${rtl ? 'rtl' : 'ltr'}`}
+          className={`relative w-full max-w-lg max-h-[min(calc(100dvh-1.5rem),760px)] sm:max-h-[min(calc(100dvh-2rem),760px)] bg-[#0B132B] border-2 border-blue-500/40 rounded-3xl p-4 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] z-10 text-white space-y-4 sm:space-y-5 outline-none overflow-y-auto custom-scrollbar flex flex-col my-auto ${rtl ? 'rtl' : 'ltr'}`}
           dir={rtl ? 'rtl' : 'ltr'}
         >
           {/* Screen Reader Announcement */}

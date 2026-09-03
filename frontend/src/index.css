@@ -222,7 +222,9 @@
 
   /* MODALS */
   .orma-modal-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md;
+    @apply fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto overscroll-contain;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
   .orma-modal-content {
     @apply bg-slate-900/90 border border-white/15 rounded-[2.5rem] p-6 sm:p-8 w-[90vw] max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.7),0_0_40px_rgba(59,130,246,0.12)] backdrop-blur-2xl relative outline-none flex flex-col;
