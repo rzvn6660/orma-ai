@@ -34,56 +34,119 @@ export default function AICompanionOrb({
   const analyserRef = useRef(null);
   const micSourceRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const activeStreamRef = useRef(null);
+  const streamRef = useRef(null);
+  const connectedTrackIdRef = useRef(null);
 
-  // Continuous conversation mode VAD refs
+  // Continuous conversation mode VAD & readiness refs
   const speechDetectedRef = useRef(false);
-  const lastSpeechTimeRef = useRef(Date.now());
+  const lastSpeechTimeRef = useRef(0);
   const isConversationModeRef = useRef(isConversationMode);
-  isConversationModeRef.current = isConversationMode;
+  useEffect(() => {
+    isConversationModeRef.current = isConversationMode;
+  }, [isConversationMode]);
+  const lastProcessedTriggerRef = useRef(0);
+  const pendingStartRef = useRef(false);
 
-  // Stop microphone analysis & clean up Web Audio resources
+  // Safely stop all underlying microphone tracks to release hardware
+  const cleanupStream = useCallback(() => {
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (_e) {
+            // no-op
+          }
+        });
+      } catch (_e) {
+        // no-op
+      }
+      streamRef.current = null;
+    }
+    connectedTrackIdRef.current = null;
+  }, []);
+
+  // Stop audio analysis animation loop & disconnect nodes WITHOUT closing live tracks
   const stopAudioAnalysis = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
     if (micSourceRef.current) {
-      micSourceRef.current.disconnect();
+      try {
+        micSourceRef.current.disconnect();
+      } catch (_e) {
+        // no-op
+      }
       micSourceRef.current = null;
     }
     if (analyserRef.current) {
-      analyserRef.current.disconnect();
+      try {
+        analyserRef.current.disconnect();
+      } catch (_e) {
+        // no-op
+      }
       analyserRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    if (activeStreamRef.current) {
-      activeStreamRef.current.getTracks().forEach(track => track.stop());
-      activeStreamRef.current = null;
     }
     setAudioLevel(0);
   }, []);
 
-  // Start real microphone analysis loop
-  const startAudioAnalysis = useCallback(async () => {
-    try {
+  // Single persistent MediaRecorder hook across conversation turns
+  const { status, startRecording, stopRecording, error, previewAudioStream } = useReactMediaRecorder({
+    audio: { echoCancellation: true, noiseSuppression: true },
+    stopStreamsOnStop: false, // Keep underlying MediaStream alive across conversation turns
+    onStop: (blobUrl, blob) => {
       stopAudioAnalysis();
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: true, noiseSuppression: true } 
-      });
-      activeStreamRef.current = stream;
+      if (!isConversationModeRef.current) {
+        cleanupStream();
+      }
+      if (onRecordingComplete && blob) {
+        onRecordingComplete(blobUrl, blob);
+      }
+      setWakeWordActive(false);
+    },
+  });
+
+  // Connect real-time Web Audio RMS analysis & VAD to the provided MediaStream (zero extra getUserMedia)
+  const startAudioAnalysis = useCallback((stream) => {
+    if (!stream) return;
+    try {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
 
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
 
-      const audioCtx = new AudioCtx();
-      if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx || audioCtx.state === 'closed') {
+        audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
       }
-      audioContextRef.current = audioCtx;
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch((_e) => {
+          // no-op
+        });
+      }
+
+      if (micSourceRef.current) {
+        try {
+          micSourceRef.current.disconnect();
+        } catch (_e) {
+          // no-op
+        }
+        micSourceRef.current = null;
+      }
+      if (analyserRef.current) {
+        try {
+          analyserRef.current.disconnect();
+        } catch (_e) {
+          // no-op
+        }
+        analyserRef.current = null;
+      }
 
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -133,45 +196,84 @@ export default function AICompanionOrb({
 
       animationFrameRef.current = requestAnimationFrame(checkLevel);
     } catch (err) {
-      console.warn('Real-time audio analysis not available:', err);
+      console.warn('[AICompanionOrb] Real-time audio analysis error:', err);
     }
-  }, [stopAudioAnalysis]);
-
-  // Audio recording hook
-  const { status, startRecording, stopRecording, error } = useReactMediaRecorder({
-    audio: true,
-    onStart: () => {
-      startAudioAnalysis();
-    },
-    onStop: (blobUrl, blob) => {
-      stopAudioAnalysis();
-      if (onRecordingComplete && blob) {
-        onRecordingComplete(blobUrl, blob);
-      }
-      setWakeWordActive(false);
-    },
-  });
+  }, [stopRecording]);
 
   const isListening = status === 'recording';
 
-  // React to listenTrigger from parent in continuous mode
+  // Keep stream reference updated for session cleanup
+  useEffect(() => {
+    if (previewAudioStream) {
+      streamRef.current = previewAudioStream;
+    }
+  }, [previewAudioStream]);
+
+  // Connect AudioContext analysis & VAD whenever recording starts with an active track
+  useEffect(() => {
+    if (status === 'recording' && previewAudioStream) {
+      const audioTracks = previewAudioStream.getAudioTracks();
+      const firstTrack = audioTracks[0];
+      if (firstTrack && firstTrack.readyState === 'live') {
+        if (connectedTrackIdRef.current !== firstTrack.id) {
+          connectedTrackIdRef.current = firstTrack.id;
+          startAudioAnalysis(previewAudioStream);
+        }
+      }
+    } else if (status !== 'recording') {
+      connectedTrackIdRef.current = null;
+      stopAudioAnalysis();
+    }
+  }, [status, previewAudioStream, startAudioAnalysis, stopAudioAnalysis]);
+
+  // React to listenTrigger from parent with recorder readiness guard
   useEffect(() => {
     if (listenTrigger > 0 && isConversationMode) {
-      if (status !== 'recording') {
+      if (listenTrigger > lastProcessedTriggerRef.current) {
+        lastProcessedTriggerRef.current = listenTrigger;
         speechDetectedRef.current = false;
         lastSpeechTimeRef.current = Date.now();
-        startRecording();
+
+        if (status === 'recording') {
+          return;
+        }
+
+        if (status === 'stopping') {
+          // Recorder transitioning: queue start once stopped/idle
+          pendingStartRef.current = true;
+        } else {
+          // Recorder ready: start immediately
+          pendingStartRef.current = false;
+          startRecording();
+        }
       }
     }
   }, [listenTrigger, isConversationMode, status, startRecording]);
 
-  // Stop recording if conversation mode ends
+  // Execute queued start as soon as the recorder finishes stopping
   useEffect(() => {
-    if (!isConversationMode && status === 'recording') {
-      stopRecording();
-      stopAudioAnalysis();
+    if (pendingStartRef.current && (status === 'stopped' || status === 'idle') && isConversationModeRef.current) {
+      pendingStartRef.current = false;
+      startRecording();
     }
-  }, [isConversationMode, status, stopRecording, stopAudioAnalysis]);
+  }, [status, startRecording]);
+
+  // Stop recording and release microphone resources when conversation mode ends
+  useEffect(() => {
+    if (!isConversationMode) {
+      pendingStartRef.current = false;
+      lastProcessedTriggerRef.current = 0;
+      if (status === 'recording') {
+        stopRecording();
+      }
+      stopAudioAnalysis();
+      cleanupStream();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+    }
+  }, [isConversationMode, status, stopRecording, stopAudioAnalysis, cleanupStream]);
 
   // Safety timeout: max utterance 25 seconds
   useEffect(() => {
@@ -188,12 +290,18 @@ export default function AICompanionOrb({
     };
   }, [isListening, status, stopRecording]);
 
-  // Cleanup on component unmount
+  // Component unmount cleanup
   useEffect(() => {
     return () => {
+      pendingStartRef.current = false;
       stopAudioAnalysis();
+      cleanupStream();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
     };
-  }, [stopAudioAnalysis]);
+  }, [stopAudioAnalysis, cleanupStream]);
 
   const handleWakeWordDetected = () => {
     tts.stop();
@@ -204,7 +312,7 @@ export default function AICompanionOrb({
 
   const { 
     pauseWakeWord, 
-    resumeWakeWord,
+    resumeWakeWord, 
   } = useWakeWord(handleWakeWordDetected);
 
   useEffect(() => {
@@ -264,12 +372,22 @@ export default function AICompanionOrb({
 
   const activeErrorMessage = getErrorMessage();
 
-  // If permission denied during conversation mode, cleanly end conversation mode
+  // Only terminate conversation mode for genuinely unrecoverable permission denial
   useEffect(() => {
     if (error && isConversationMode) {
       const errStr = String(error).toLowerCase();
-      if (errStr.includes('permission') || errStr.includes('denied')) {
-        if (onEndConversation) onEndConversation();
+      if (errStr.includes('permission') || errStr.includes('denied') || errStr.includes('notallowed')) {
+        if (typeof navigator !== 'undefined' && navigator.permissions && navigator.permissions.query) {
+          navigator.permissions.query({ name: 'microphone' }).then(permissionStatus => {
+            if (permissionStatus.state === 'denied') {
+              if (onEndConversation) onEndConversation();
+            } else {
+              console.warn('[AICompanionOrb] Transient recorder issue; permission state is:', permissionStatus.state);
+            }
+          }).catch(() => {
+            console.warn('[AICompanionOrb] Recorder error:', error);
+          });
+        }
       }
     }
   }, [error, isConversationMode, onEndConversation]);
