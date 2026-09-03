@@ -265,3 +265,28 @@ async def test_scenario_10_subject_isolation():
         assert "Insulin Glargine" in res_a
     finally:
         db.close()
+
+@pytest.mark.asyncio
+async def test_scenario_11_upcoming_medicine_offline_no_llm():
+    """Scenario 11: Explicit regression test verifying 'Which is my upcoming medicine?' resolves in offline CI mode without LLM."""
+    from unittest.mock import patch
+    db = SessionLocal()
+    try:
+        m = MedicineReminder(
+            elder_id=USER_A, subject_id=USER_A,
+            medicine_name="Lisinopril", dosage="10 mg", reminder_time="07:00 PM",
+            frequency="Daily", taken_status=False
+        )
+        db.add(m)
+        db.commit()
+
+        # Simulate strict offline CI environment (no LLM keys available)
+        with patch("intelligence.orchestrator.ai_manager.check_health", return_value={"available": False, "provider": "none"}):
+            res = await orchestrator.process_request("Which is my upcoming medicine?", USER_A, db)
+            assert "Lisinopril" in res
+            assert "10 mg" in res
+            assert "07:00 PM" in res
+            # Must NOT return offline tool mode fallback text
+            assert "offline tool mode" not in res.lower()
+    finally:
+        db.close()

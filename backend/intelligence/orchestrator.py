@@ -101,7 +101,7 @@ class IntelligenceOrchestrator:
         time_period = meta.get("time_period", "today")
         t3 = time.perf_counter() # Language & Intent detection completed
 
-        is_next_med_query = any(p in low_text for p in ["next medicine", "next dose", "what is my next medicine", "what's my next medicine", "next scheduled medicine"])
+        is_next_med_query = any(p in low_text for p in ["next medicine", "next dose", "upcoming medicine", "upcoming", "what is my next medicine", "what's my next medicine", "next scheduled medicine"])
 
         # 5. Resolve Execution Mode
         mode_data = mode_resolver.resolve_execution_mode(

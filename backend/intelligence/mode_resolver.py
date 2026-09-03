@@ -39,7 +39,7 @@ class ModeResolver:
             }
 
         # 2. TOOL_ONLY: Authoritative direct lookup queries (e.g. "What is my next medicine?", "What medicine do I take tonight?")
-        has_schedule_word = any(w in low for w in ["next", "tonight", "today", "morning", "afternoon", "evening", "night", "now", "അടുത്ത", "अगली", "التالي"])
+        has_schedule_word = any(w in low for w in ["next", "upcoming", "tonight", "today", "morning", "afternoon", "evening", "night", "now", "അടുത്ത", "अगली", "التالي"])
         has_med_word = any(w in low for w in ["medicine", "medicines", "dose", "tablet", "tablets", "scheduled", "മരുന്ന്", "ദവാ", "दवा"])
         is_simple_next_med = has_next_med_query or (has_schedule_word and has_med_word and any(q in low for q in ["what", "which", "when", "next"])) or any(p in low for p in [
             "what medicine do i take", "what medicines do i take", "what medicine do i take tonight", "what medicine do i take today",
