@@ -329,5 +329,71 @@ async def test_end_to_end_chat_persistence_and_retrieval():
     finally:
         db.close()
 
+# =========================================================================
+# TEST 11: Explicit Memory In Offline Fallback Mode (No LLM Providers)
+# =========================================================================
+@pytest.mark.asyncio
+async def test_explicit_memory_in_offline_fallback_mode():
+    """
+    Proves that even when cloud/local LLM providers are unavailable (e.g. CI without API keys),
+    explicit user memory instructions are reliably parsed and persisted via the deterministic path,
+    retrieval answers are grounded in the saved memory, and ordinary casual conversation does NOT persist.
+    """
+    from llm.ai_manager import ai_manager
+    original_providers = ai_manager.providers if hasattr(ai_manager, 'providers') else None
+
+    db = SessionLocal()
+    try:
+        # Simulate completely offline environment
+        ai_manager.providers = {}
+
+        # 1. Explicit memory save
+        t1_reply = await orchestrator.process_request(
+            text="Remember that my preferred reminder language is English.",
+            user_id=TEST_USER_A_ID,
+            db=db,
+            language="en"
+        )
+        assert t1_reply is not None
+
+        # Verify exactly one memory record was persisted
+        saved_mems = db.query(OCMEMemory).filter(OCMEMemory.user_id == TEST_USER_A_ID).all()
+        assert len(saved_mems) == 1
+        assert "English" in saved_mems[0].value
+        assert "Language" in saved_mems[0].title or "Preference" in saved_mems[0].category
+
+        # 2. Fresh session simulation
+        conversation_manager.clear_session(TEST_USER_A_ID)
+        assert len(conversation_manager.get_history(TEST_USER_A_ID)) == 0
+
+        # 3. Retrieval in offline fallback mode
+        t2_reply = await orchestrator.process_request(
+            text="What language do I prefer for reminders?",
+            user_id=TEST_USER_A_ID,
+            db=db,
+            language="en"
+        )
+        assert "english" in t2_reply.lower(), f"Expected 'English' in retrieval reply, got: '{t2_reply}'"
+
+        # Verify retrieval did not create a duplicate memory
+        mems_after_query = db.query(OCMEMemory).filter(OCMEMemory.user_id == TEST_USER_A_ID).all()
+        assert len(mems_after_query) == 1
+
+        # 4. Ordinary casual conversation must NOT persist memory
+        t3_reply = await orchestrator.process_request(
+            text="I had some toast this morning.",
+            user_id=TEST_USER_A_ID,
+            db=db,
+            language="en"
+        )
+        assert t3_reply is not None
+        mems_after_casual = db.query(OCMEMemory).filter(OCMEMemory.user_id == TEST_USER_A_ID).all()
+        assert len(mems_after_casual) == 1
+    finally:
+        if original_providers is not None:
+            ai_manager.providers = original_providers
+        db.close()
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

@@ -320,6 +320,8 @@ class IntelligenceOrchestrator:
 
         elif exec_mode == ExecutionMode.FALLBACK:
             logger.info(f"[ORMA BRAIN req_{req_id}] Executing FALLBACK mode because LLM provider is unavailable")
+            t6 = t5
+            t7 = t6
             if selected_tool_name == "medication_status":
                 meds = tool_result.get("medications", [])
                 pending = [m for m in meds if m.get("status") != "TAKEN"]
@@ -336,12 +338,32 @@ class IntelligenceOrchestrator:
                     response_text = f"According to your document ({chunks[0].document_title}): {chunks[0].text_content[:120]}... Please consult your doctor for detailed advice."
                 else:
                     response_text = get_empty_retrieval_response(language)
+            elif intent == "Memory":
+                t6 = time.perf_counter()
+                final_response, gen_meta = await response_coordinator.generate_response_with_meta(
+                    text=text,
+                    intent=intent,
+                    validation_decision="Continue",
+                    validation_reason="Offline fallback memory handling",
+                    missing_fields=[],
+                    route_result={"status": "success", "action": "chat"},
+                    language=language,
+                    memory_context=memory_context,
+                    conflict=conflict
+                )
+                t7 = time.perf_counter()
+                response_text = final_response
             else:
                 response_text = "I am currently running in offline tool mode. How can I assist you with your schedule?"
             conversation_manager.add_message(user_id, "assistant", response_text)
-            t6 = t5
-            t7 = t6
             t8 = time.perf_counter()
+
+            # Schedule explicit memory extraction in FALLBACK mode
+            if intent == "Memory":
+                try:
+                    await self._async_extract_memory(str(target_uid), text, response_text, intent)
+                except Exception as e:
+                    logger.warning(f"[ORMA BRAIN] Offline memory extraction warning: {e}")
 
         else:
             # Modes = LLM_WITH_TOOL or CONVERSATIONAL
