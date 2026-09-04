@@ -20,6 +20,20 @@ class ConflictEngine:
         for mem in existing_memories:
             # Same title but different value indicates a potential conflict
             if mem.title.lower() == title and mem.value.lower() != new_value:
+                # If the memory is a User Preference, an explicit statement is an update rather than an unresolvable contradiction
+                if mem.category == "Preference" or candidate.get("category") == "Preference":
+                    logger.info(f"[ConflictEngine] Preference update detected for '{mem.title}'. Updating to '{candidate.get('value')}'.")
+                    return {
+                        "action": "UPDATE",
+                        "reason": "User updated preference.",
+                        "existing_memory": mem,
+                        "updates": {
+                            "value": candidate.get("value"),
+                            "confidence": candidate.get("confidence", 0.95),
+                            "usage_count": (mem.usage_count or 0) + 1
+                        }
+                    }
+
                 logger.warning(f"[ConflictEngine] Conflict detected for '{mem.title}'. Existing: '{mem.value}', New: '{candidate.get('value')}'")
                 return {
                     "action": "ASK_USER",

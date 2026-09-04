@@ -13,7 +13,7 @@ import HealthSnapshot from '../components/HealthSnapshot';
 import MedicineReminder from '../components/MedicineReminder';
 import AIInsightsWidget from '../components/AIInsightsWidget';
 import ErrorBoundary from '../components/ErrorBoundary';
-import { medicineApi, healthPlannerApi, healthApi, reportApi } from '../services/api';
+import { medicineApi, healthPlannerApi, healthApi, healthRecordApi, reportApi } from '../services/api';
 
 export default function MyHealthPage({ user, onViewChange }) {
   const [searchParams, setSearchParams] = useSearchParams();

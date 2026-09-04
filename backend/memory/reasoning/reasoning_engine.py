@@ -68,7 +68,9 @@ class ReasoningEngine:
         if conflict_result:
             decision["action"] = conflict_result["action"]
             decision["reason"] = conflict_result["reason"]
-            decision["conflict_data"] = conflict_result["conflict_data"]
+            decision["conflict_data"] = conflict_result.get("conflict_data")
+            decision["existing_memory"] = conflict_result.get("existing_memory")
+            decision["updates"] = conflict_result.get("updates")
             logger.info(f"[ReasoningEngine] Decision: {decision['action']} ({decision['reason']})")
             return decision
             

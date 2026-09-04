@@ -15,34 +15,34 @@ class MemoryClassifier:
     def __init__(self):
         pass
 
-    def classify(self, text: str, context_intent: str) -> str:
+    def classify(self, text: str, context_intent: str = "", title: str = "") -> str:
         """
-        Classifies the memory based on text and original orchestration intent.
+        Classifies the memory based on text, title, and original orchestration intent.
         """
-        logger.info(f"[MemoryClassifier] Classifying memory candidate: '{text}' (Intent: {context_intent})")
+        logger.info(f"[MemoryClassifier] Classifying memory candidate: '{text}' | Title: '{title}' (Intent: {context_intent})")
         
         # Rule-based matching
-        text_lower = text.lower()
+        combined = f"{title} {text}".lower().strip()
         
-        if context_intent == "Medicine" or any(w in text_lower for w in ["pill", "dosage", "tablet"]):
+        if context_intent == "Medicine" or any(w in combined for w in ["pill", "dosage", "tablet", "capsule"]):
             return "Medicine"
             
-        if context_intent == "Appointment" or any(w in text_lower for w in ["doctor", "clinic", "hospital"]):
+        if context_intent == "Appointment" or any(w in combined for w in ["doctor", "clinic", "hospital", "appointment"]):
             return "Appointment"
             
-        if context_intent == "HealthRecord" or any(w in text_lower for w in ["blood", "test", "pressure"]):
+        if context_intent == "HealthRecord" or any(w in combined for w in ["blood", "test", "pressure", "reading"]):
             return "Health"
             
-        if any(w in text_lower for w in ["son", "daughter", "wife", "husband", "grandson"]):
+        if any(w in combined for w in ["son", "daughter", "wife", "husband", "grandson", "granddaughter", "brother", "sister", "mother", "father", "caregiver", "family"]):
             return "Family"
             
-        if any(w in text_lower for w in ["like", "prefer", "hate", "favorite"]):
+        if any(w in combined for w in ["like", "prefer", "hate", "favorite", "preference", "language", "reminder language"]):
             return "Preference"
             
-        if any(w in text_lower for w in ["birthday", "anniversary", "passed away"]):
+        if any(w in combined for w in ["birthday", "anniversary", "passed away", "wedding"]):
             return "Important Event"
             
-        if any(w in text_lower for w in ["name is", "live in", "born in"]):
+        if any(w in combined for w in ["name is", "live in", "born in", "allergy", "allergic"]):
             return "Personal"
             
         # Default fallback

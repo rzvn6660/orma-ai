@@ -23,6 +23,8 @@ export default defineConfig([
       'react-hooks/set-state-in-effect': 'off',
       'react/prop-types': 'off',
       'no-useless-assignment': 'off',
+      'react-refresh/only-export-components': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
     }
   },
 ])

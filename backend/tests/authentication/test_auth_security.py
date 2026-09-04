@@ -67,7 +67,8 @@ def run_tests():
         hashed_password=get_password_hash(valid_password),
         role="elderly",
         name="Rate Limit User",
-        token_version=1
+        token_version=1,
+        email_verified=True
     )
     db.add(user1)
     db.commit()
@@ -240,7 +241,7 @@ def run_tests():
     # ──────────────────────────────────────────────────────────────────────────
     print("\n[CHECK 9] Testing Cross-User Deletion Safety...")
     user_b_email = f"userb_{uuid.uuid4().hex[:8]}@orma.test"
-    user_b = User(email=user_b_email, hashed_password=get_password_hash("PasswordUserB123!"), role="elderly", name="User B", token_version=1)
+    user_b = User(email=user_b_email, hashed_password=get_password_hash("PasswordUserB123!"), role="elderly", name="User B", token_version=1, email_verified=True)
     db.add(user_b)
     db.commit()
     db.refresh(user_b)
@@ -320,7 +321,7 @@ def run_tests():
     # ──────────────────────────────────────────────────────────────────────────
     print("\n[CHECK 13] Testing Password Reset Flow & Old Session Invalidation...")
     user_c_email = f"userc_{uuid.uuid4().hex[:8]}@orma.test"
-    user_c = User(email=user_c_email, hashed_password=get_password_hash("PasswordUserC123!"), role="elderly", name="User C", token_version=1)
+    user_c = User(email=user_c_email, hashed_password=get_password_hash("PasswordUserC123!"), role="elderly", name="User C", token_version=1, email_verified=True)
     db.add(user_c)
     db.commit()
     db.refresh(user_c)

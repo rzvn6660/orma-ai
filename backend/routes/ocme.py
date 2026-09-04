@@ -9,10 +9,11 @@ from memory.memory_store import memory_store
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ocme", tags=["OCME"])
+router = APIRouter(tags=["OCME"])
 
-# Note: In a real app, user_id would come from auth dependencies. For now, defaulting to 1 or passed via query.
+# Note: user_id comes from auth dependencies (get_current_context)
 
+@router.get("", response_model=List[OCMEMemoryResponse])
 @router.get("/", response_model=List[OCMEMemoryResponse])
 def get_memories(
     category: Optional[str] = None,
@@ -24,7 +25,11 @@ def get_memories(
 ):
     """Retrieves memories with search, filtering, and sorting."""
     user_id = ctx['resolved_subject']['id']
-    query = db.query(OCMEMemory).filter(OCMEMemory.user_id == user_id)
+    from sqlalchemy import or_
+    filters = [OCMEMemory.user_id == str(user_id)]
+    if str(user_id).isdigit():
+        filters.append(OCMEMemory.user_id == int(user_id))
+    query = db.query(OCMEMemory).filter(or_(*filters))
     
     if category:
         query = query.filter(OCMEMemory.category == category)

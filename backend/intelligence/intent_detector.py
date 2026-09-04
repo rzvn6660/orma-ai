@@ -189,7 +189,12 @@ class IntentDetector:
             return "Appointment"
 
         # 9. Memory Intents
-        if any(w in low for w in ["remind me about the thing", "yesterday", "remember", "forgot", "where is", "what did i tell you", "daughter", "son", "family", "name is", "what is my daughter"]):
+        if any(w in low for w in [
+            "remind me about the thing", "yesterday", "remember", "forgot", "where is", 
+            "what did i tell you", "what do you remember", "daughter", "son", "family", 
+            "name is", "what is my daughter", "preferred reminder language", "preferred language",
+            "what language", "what do i prefer", "my preference", "keep in mind", "note that", "save to memory"
+        ]):
             return "Memory"
 
         # 10. Pure Greetings & General Conversation

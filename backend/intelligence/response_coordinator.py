@@ -146,6 +146,17 @@ class ResponseCoordinator:
                         f"User: {text}\n"
                         "Assistant:"
                     )
+                elif intent == "Memory":
+                    prompt = (
+                        "System: You are Orma, a warm, polite, and reassuring AI healthcare companion for elderly users.\n"
+                        "Task: If the user is asking you to remember something, acknowledge and confirm warmly that you have remembered it for them. "
+                        "If the user is asking what you remember or asking about a saved fact/preference, answer directly and accurately using the context below. "
+                        "Keep your response concise (1-2 sentences) and friendly.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
                 else:
                     prompt = (
                         "System: You are Orma, a warm, polite AI healthcare companion for elderly users.\n"

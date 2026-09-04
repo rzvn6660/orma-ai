@@ -64,13 +64,22 @@ if is_sqlite:
             cursor.close()
 else:
     # PostgreSQL configuration for Supabase production
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        pool_size=5,
-        max_overflow=5
-    )
+    try:
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            pool_size=5,
+            max_overflow=5
+        )
+    except ModuleNotFoundError as e:
+        logger.warning(f"[DATABASE] PostgreSQL driver '{e.name}' not installed. Falling back to local SQLite: {DB_PATH}")
+        SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+        is_sqlite = True
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL,
+            connect_args={"check_same_thread": False, "timeout": 15}
+        )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

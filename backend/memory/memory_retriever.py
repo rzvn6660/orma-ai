@@ -19,6 +19,8 @@ class MemoryRetriever:
         "HealthRecord": ["Health", "Medicine", "Appointment"],
         "Emergency": ["Health", "Medicine", "Family", "Personal"],
         "GeneralChat": ["Personal", "Preference", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
+        "GENERAL_CONVERSATION": ["Personal", "Preference", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
+        "GREETING": ["Personal", "Preference"],
         "Reminder": ["Temporary", "Preference", "Medicine", "Appointment"],
         "Memory": ["Personal", "Family", "Relationships", "RELATIONSHIPS", "Health", "Medicine", "Appointment", "Preference", "Important Event", "Temporary", "Conversation", "Custom"],
         "Caregiver": ["Family", "Caregiver", "Health", "Preference"],

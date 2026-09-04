@@ -27,8 +27,7 @@ class PolicyEngine:
             "expires_in_days": 1, # Expire automatically
         },
         "Conversation": {
-            "action": "SAVE",
-            "expires_in_days": 7,
+            "action": "IGNORE",
         },
         "Medicine": {
             "action": "IGNORE", # Handled by ownership, but acts as a fallback

@@ -152,6 +152,34 @@ class FallbackProvider(BaseAIProvider):
                 reply = "എന്റെ പക്കലുള്ള രേഖകളിൽ ആ വിവരങ്ങൾ കണ്ടെത്താൻ കഴിഞ്ഞില്ല." if is_malayalam else "I couldn't find that information in the documents I have."
         elif any(e in query_lower for e in ["pain", "hurt", "emergency", "ambulance", "hospital", "വേദന", "അപകടം"]):
             reply = "അടിയന്തിര സാഹചര്യമാണെങ്കിൽ ദയവായി ശാന്തരായിരിക്കുക. ഞാൻ നിങ്ങളുടെ കെയർഗിവറെ ഉടൻ അറിയിക്കാം." if is_malayalam else "If you need immediate assistance, please remain calm. I can notify your caregiver right away."
+        elif any(query_lower.startswith(w) for w in ["remember that", "please remember that", "keep in mind that", "note that", "note down that"]):
+            rem_match = re.search(r"(?:remember|keep in mind|note(?: down)?)(?:\s+that|\s*:)?\s+(.*)", user_query, re.IGNORECASE)
+            rem_text = rem_match.group(1).strip().rstrip(".") if rem_match else "your preference"
+            reply = f"ശരി, ഞാൻ അത് ഓർത്തു വെക്കാം: {rem_text}." if is_malayalam else f"I have made a note and will remember that {rem_text}."
+        elif "[relevant long-term memory]" in full_text_lower:
+            mem_matches = re.findall(r"-\s*([^:]+):\s*(.*?)\s+is\s+([^.\n]+)", prompt, re.IGNORECASE)
+            memories = []
+            for m in mem_matches:
+                memories.append({
+                    "category": m[0].strip(),
+                    "title": m[1].strip(),
+                    "value": m[2].strip()
+                })
+            
+            matched_mem = None
+            for m in memories:
+                if any(w in query_lower for w in m["title"].lower().split() if len(w) > 3) or \
+                   any(w in query_lower for w in m["value"].lower().split() if len(w) > 3) or \
+                   ("language" in query_lower and "language" in m["title"].lower()):
+                    matched_mem = m
+                    break
+            if not matched_mem and memories:
+                matched_mem = memories[0]
+
+            if matched_mem:
+                reply = f"നിങ്ങളുടെ {matched_mem['title']} {matched_mem['value']} ആണ് എന്ന് ഞാൻ ഓർക്കുന്നു." if is_malayalam else f"Your {matched_mem['title'].lower()} is {matched_mem['value']}."
+            else:
+                reply = "നിങ്ങളുടെ വിവരങ്ങൾ ഞാൻ ഓർക്കുന്നു." if is_malayalam else "I remember your preferences."
         else:
             reply = "നിങ്ങളുടെ ആരോഗ്യം, മരുന്നുകൾ, ഷെഡ്യൂൾ എന്നിവയിൽ സഹായിക്കാൻ ഞാൻ ഇവിടെയുണ്ട്." if is_malayalam else "I am here to assist you with your medicines, health reminders, and daily schedule."
 

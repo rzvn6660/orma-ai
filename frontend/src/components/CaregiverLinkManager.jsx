@@ -74,6 +74,11 @@ export default function CaregiverLinkManager({ user }) {
     return () => window.removeEventListener('orma_websocket_message', handleWsMessage);
   }, [user.role]);
 
+  const closeConfirmModal = () => {
+    if (confirmModal.loading) return;
+    setConfirmModal({ isOpen: false, target: null, type: null, loading: false });
+  };
+
   // Handle ESC key to close modal
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -126,11 +131,6 @@ export default function CaregiverLinkManager({ user }) {
   const openUnlinkModal = (target, type) => {
     setActiveMenuId(null);
     setConfirmModal({ isOpen: true, target, type, loading: false });
-  };
-
-  const closeConfirmModal = () => {
-    if (confirmModal.loading) return;
-    setConfirmModal({ isOpen: false, target: null, type: null, loading: false });
   };
 
   const executeRevokeAccess = async () => {

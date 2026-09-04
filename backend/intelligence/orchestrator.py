@@ -379,12 +379,15 @@ class IntelligenceOrchestrator:
             t8 = time.perf_counter() # Response processing completed
             llm_called = gen_meta.get("llm_called", False)
 
-            # Schedule non-blocking post-response background memory extraction
+            # Schedule memory extraction (await for explicit Memory intent, non-blocking background for general turns)
             if intent in ["Memory", "GENERAL_CONVERSATION", "Family", "Personal", "Reminder", "Appointment"]:
                 try:
-                    asyncio.create_task(self._async_extract_memory(str(user_id), text, response_text, intent))
-                except Exception:
-                    pass
+                    if intent == "Memory":
+                        await self._async_extract_memory(str(target_uid), text, response_text, intent)
+                    else:
+                        asyncio.create_task(self._async_extract_memory(str(target_uid), text, response_text, intent))
+                except Exception as e:
+                    logger.warning(f"[ORMA BRAIN] Memory extraction scheduling warning: {e}")
 
         # 10. TTS Voice Resolution
         t9 = time.perf_counter() # TTS voice resolved
