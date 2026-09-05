@@ -1,258 +1,256 @@
 # ORMA AI
 
+> **Voice-First AI Memory & Daily-Living Assistant for Older Adults and Caregivers**
+
+[![CI Pipeline](https://github.com/rzvn6660/orma-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rzvn6660/orma-ai/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-v0.1.0--beta.1-blue.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-Live%20Beta-orange.svg)](https://app-orma-ai.onrender.com)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**ORMA AI** is an intelligent, voice-first healthcare and daily routine companion engineered specifically for older adults and their caregivers. It bridges conversational AI, deterministic medication management, long-term memory support, multilingual voice interaction, life-safety emergency routing, and grounded personal document retrieval into a unified, secure platform.
+- **Live Demo**: [https://app-orma-ai.onrender.com](https://app-orma-ai.onrender.com)
+- **Backend API**: [https://orma-ai.onrender.com](https://orma-ai.onrender.com)
+- **Interactive API Docs**: [https://orma-ai.onrender.com/docs](https://orma-ai.onrender.com/docs)
 
 ---
 
-## Architecture Overview
+## Overview
+
+As individuals age, managing daily routines, remembering complex medication schedules, and navigating smartphone user interfaces can introduce significant cognitive fatigue. Traditional healthcare apps rely heavily on small touch targets, multi-step navigation menus, and manual text inputs that often create barriers for elderly users. At the same time, family members and caregivers need dependable visibility into daily adherence without eroding the older adult's independence.
+
+**ORMA AI** is engineered as a voice-first healthcare companion that bridges natural human dialogue with deterministic medical safety. Older adults can simply speak naturally—inquiring about upcoming medicines, confirming intake through conversational phrases (*"I took it"*), recalling personal memories, or triggering life-safety assistance. Behind the conversation layer, an authoritative backend maintains schedule integrity, coordinates multi-turn context, and escalates missed doses to linked caregivers.
+
+---
+
+## Key Features
+
+- **Voice Conversation**: Hands-free, low-latency audio interaction supporting both push-to-talk and conversational modes.
+- **English-First Production Voice Pipeline**: Validated end-to-end voice transcription, intent parsing, and natural speech synthesis.
+- **Beta Multilingual Voice Support**: Beta voice recognition and response generation for Malayalam, Tamil, Hindi, and Manglish with automated script detection and phonetic recovery heuristics.
+- **Medication Reminders**: Timezone-aware daily, weekly, and interval scheduling with minute-by-minute automated evaluation.
+- **Medication Adherence Confirmation**: Supports both natural voice confirmations (*"I already took my morning pill"*, *"I took it"*) and direct UI actions.
+- **Conversational Context & Pronoun Resolution**: Multi-turn reference resolver that identifies pronouns and contextual references (*"it"*, *"that medicine"*) from recent dialogue history.
+- **AI Memory (OCME)**: Context-aware personal memory extraction and grounded recall that safely stores and retrieves personal facts and preferences.
+- **Deterministic Emergency Support**: Safety-critical phrases (*"Help me"*, *"I fell down"*, *"Call my caregiver"*) bypass LLM inference latency to trigger immediate alerts and reassuring responses.
+- **Caregiver Dashboard & Linking**: Role-based access control with secure pairing codes and authorization workflows.
+- **Caregiver Notifications & Escalation**: In-app alerts, browser notifications, and automated escalation when a critical dose remains unconfirmed past the 30-minute threshold.
+- **Medical Document Storage & RAG**: Secure document ingestion for prescriptions and discharge summaries with text extraction and grounded question-answering.
+- **Speech-to-Text (ASR) & Text-to-Speech (TTS)**: Built-in audio preprocessing pipeline (WebM/Opus decoding to normalized 16 kHz 16-bit mono PCM WAV) paired with Whisper ASR and multilingual TTS synthesis.
+
+---
+
+## Architecture
+
+The diagram below illustrates the end-to-end flow from user audio to authoritative service execution:
 
 ```mermaid
 graph TD
     User["Elderly User (Voice / Touch)"]
     Caregiver["Caregiver (Web Portal)"]
-    
-    subgraph Frontend ["Frontend Layer (Vite + React 19)"]
-        UI["High-Contrast WCAG AAA UI"]
-        VoiceClient["Voice & Audio Streaming Hooks"]
-        WSClient["WebSocket & SSE Feeds"]
+
+    subgraph Client ["Frontend Client (React 19 + Vite)"]
+        UI["High-Contrast WCAG-Friendly UI"]
+        AudioRecorder["Audio Capture (WebM/Opus)"]
+        TTSClient["Audio Playback & TTS Engine"]
+        StorageUtil["Local Read-State Storage"]
     end
-    
-    subgraph Backend ["Backend Layer (FastAPI Core)"]
-        APIGateway["FastAPI Gateway & Route Handlers"]
-        AuthEngine["Zero-Trust Auth & Security Engine"]
-        
-        subgraph Brain ["Conversational Brain & Decision Core"]
-            IntentDetector["Rule & ML Intent Classification"]
-            Router["Execution Mode Router"]
-            ASIF["ASIF Context Fusion"]
-            Failover["Dual-LLM Failover (Gemini -> Groq -> Deterministic)"]
-        end
-        
-        subgraph Services ["Authoritative Tool Services"]
-            MedService["Medication & Scheduler Service"]
-            EmergencyService["Deterministic Emergency Dispatch"]
-            MemoryService["OCME Episodic Memory Store"]
-            RAGService["Hybrid Document RAG (OCR + Vector)"]
-            CaregiverService["Caregiver Linkage & Telemetry"]
-        end
-        
-        subgraph Persistence ["Storage & Persistence Layer (/data)"]
-            SQLite["SQLite 3 (WAL Mode, busy_timeout=10s)"]
-            Storage["Encrypted PDF & Document Storage"]
-        end
+
+    subgraph BackendGateway ["Backend Gateway (FastAPI)"]
+        APIRoutes["FastAPI Endpoint Routers (/api)"]
+        AuthMiddleware["JWT Auth & Tenant Isolation"]
     end
-    
-    User <-->|WebAudio / Microphones| VoiceClient
-    User <-->|High-Contrast Touch| UI
-    Caregiver <-->|HTTPS API / JWT Session| APIGateway
-    
-    UI <-->|REST API / HTTPS| APIGateway
-    WSClient <-->|WebSocket Stream| APIGateway
-    
-    APIGateway --> AuthEngine
-    APIGateway --> Brain
+
+    subgraph SpeechPipeline ["Speech Processing Engine"]
+        AudioPrep["Audio Preprocessor (PyAV 16kHz PCM WAV)"]
+        WhisperASR["Whisper ASR (Groq Turbo / Large-v3)"]
+        LangRouter["Language Hint & Script Router"]
+    end
+
+    subgraph Brain ["Intelligence Core & Orchestrator"]
+        ModeResolver["Execution Mode Resolver"]
+        RefResolver["Conversational Reference Resolver"]
+        IntentNLU["Semantic Intent & Entity Extractor"]
+        LLMFailover["Dual LLM Chain (Gemini Primary -> Groq Secondary -> Local Fallback)"]
+    end
+
+    subgraph Services ["Authoritative Tool Services"]
+        MedService["Medicine & Adherence Service"]
+        SchedulerService["APScheduler Engine & Missed Dose Escalation"]
+        OCMEMemory["Episodic Memory Retriever"]
+        RAGService["Document Parser & Grounded Search"]
+        EmergencyDispatch["Emergency & Notification Manager"]
+    end
+
+    subgraph Persistence ["Persistence Layer"]
+        DB[(PostgreSQL / Supabase Production)]
+        DocStorage["Encrypted Document Storage"]
+    end
+
+    User <-->|Microphone / Speaker| AudioRecorder
+    User <-->|Touch / Display| UI
+    Caregiver <-->|HTTPS Web Session| UI
+
+    AudioRecorder -->|POST /api/speech/transcribe| APIRoutes
+    UI <-->|REST API Requests| APIRoutes
+    TTSClient <--|Synthesized Audio Stream| APIRoutes
+
+    APIRoutes --> AuthMiddleware
+    AuthMiddleware --> SpeechPipeline
+    SpeechPipeline --> Brain
     Brain --> Services
     Services --> Persistence
-```
-
----
-
-## Core Capabilities
-
-- **Voice-First Natural Interaction**: Ultra-low-latency bidirectional voice interaction with speech hesitation tolerance, background noise filtering, and wake word detection ("Hey Orma").
-- **Intent-Based LLM Minimization**: Deterministic execution for structured data queries (medication schedules, timestamps, vitals) with 0ms LLM latency and 0% hallucination risk.
-- **Medication Schedule Safety**: Strict immutability rules prevent accidental state mutation from natural speech; medication intake is recorded strictly through authoritative actions.
-- **Episodic Long-Term Memory (OCME)**: Context-aware personal memory extraction and grounded recall that honestly distinguishes known facts from unknown topics.
-- **Deterministic Emergency Precedence**: Life-safety keywords ("Help me", "Call my caregiver") immediately trigger SMS/email alerts and bypass all LLM synthesis.
-- **Multilingual Support & Dynamic RTL**: Native fluency across English, Malayalam, Hindi, and Arabic, featuring automated script detection and dynamic right-to-left layout transitions.
-- **Personal Document RAG**: Scanned prescriptions, lab results, and discharge summaries are processed via PyMuPDF and Tesseract-OCR, strictly isolated by tenant ID.
-- **Caregiver Telemetry & Oversight**: Real-time alerts for missed doses, paired connection codes, health event timelines, and granular notification preferences.
-
----
-
-## AI Architecture & LLM Routing
-
-The Conversational Brain evaluates every interaction across four deterministic execution modes:
-
-```
-┌────────────────────────┬──────────────────────────────────────────────────────────────────┐
-│ Execution Mode         │ Description & Fallback Behavior                                  │
-├────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ TOOL_ONLY              │ Direct database query (e.g., "What is my next medicine?").       │
-│                        │ • LLM Calls: 0 | Latency: ~2ms | Hallucination Risk: 0%          │
-├────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ LLM_WITH_TOOL          │ Synthesis of verified data (e.g., "What do I take tonight?").    │
-│                        │ • LLM Calls: 1 (Grounding tool payload)                          │
-├────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ CONVERSATIONAL         │ Open-ended empathetic dialogue (e.g., "I'm feeling lonely").     │
-│                        │ • Persona-constrained synthesis via Gemini with Groq failover    │
-├────────────────────────┼──────────────────────────────────────────────────────────────────┤
-│ SAFETY_DETERMINISTIC   │ Emergency detection (e.g., "I fell and need help").              │
-│                        │ • LLM Calls: 0 | Immediate caregiver alert & reassuring response │
-└────────────────────────┴──────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Safety & Security Architecture
-
-1. **Zero-Trust Multi-Tenancy**: Every database lookup, vector chunk retrieval, and memory search enforces `user_id == current_user.id` or verifies active caregiver authorization (`CaregiverLink.status == 'approved'`).
-2. **Server Secret Isolation**: Strict separation ensures server API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, `RESEND_API_KEY`, `JWT_SECRET_KEY`) never leak into the frontend bundle or client payloads.
-3. **Brute-Force & Flood Protection**: 5-attempt threshold on login and OTP verification; 60-second cooldown on verification email resends.
-4. **Session Invalidation**: Password updates immediately revoke all active JWT tokens via `token_version` tracking.
-5. **Storage Isolation**: Single-instance SQLite operating in WAL mode (`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=10000;`) on a persistent mounted volume (`/data`).
-
----
-
-## Repository Structure
-
-```
-orma-ai/
-├── backend/
-│   ├── database/              # SQLAlchemy database engine and schema migrations
-│   ├── intelligence/          # Conversational brain, intent routing, and orchestrator
-│   ├── llm/                   # Multi-provider LLM manager (Gemini, Groq, local fallback)
-│   ├── memory/                # OCME episodic memory extraction and retrieval
-│   ├── models/                # Database entities (User, Medicine, HealthRecord, etc.)
-│   ├── rag/                   # Document ingestion, OCR, chunking, and semantic search
-│   ├── routes/                # FastAPI endpoint routers (auth, medicine, emergency, etc.)
-│   ├── scripts/               # Database migration and utility scripts
-│   ├── services/              # Business logic (auth, medicine, scheduler, speech, TTS)
-│   ├── tests/                 # Categorized automated test suites
-│   │   ├── authentication/    # Auth acceptance, OTP lifecycle, password reset
-│   │   ├── integration/       # Release gate, usability, scheduler, caregiver
-│   │   ├── intelligence/      # LLM routing, brain modes, natural dialogue
-│   │   ├── rag/               # Ingestion, OCR extraction, grounding, security
-│   │   ├── voice/             # Voice pipeline, latency benchmarks, reliability
-│   │   └── conftest.py        # Pytest global fixtures and path configuration
-│   ├── Dockerfile             # Production container definition
-│   ├── main.py                # FastAPI application entrypoint
-│   └── requirements.txt       # Python dependencies
-├── frontend/
-│   ├── src/                   # React 19 components, hooks, contexts, and pages
-│   ├── public/                # Static assets and icons
-│   └── package.json           # Frontend dependencies and build scripts
-├── deployment/
-│   ├── railway.json           # Railway container deployment configuration
-│   ├── render.yaml            # Render Blueprint specification with persistent disk
-│   └── docker-compose.production.yml
-├── docs/
-│   ├── architecture.md        # Comprehensive system architecture
-│   ├── authentication.md      # Zero-trust auth lifecycle and OTP verification
-│   ├── security.md            # Threat model, tenant isolation, and audit guarantees
-│   ├── rag.md                 # Document processing, OCR, and grounding pipeline
-│   ├── voice.md               # Multilingual voice pipeline and RTL support
-│   └── deployment.md          # Production cloud hosting and environment setup
-├── .github/
-│   └── workflows/ci.yml       # Automated CI testing and build verification
-├── .gitignore
-├── LICENSE                    # MIT License
-├── pyproject.toml             # Python packaging and pytest configuration
-└── README.md
+    SchedulerService -->|Missed Dose Escalation| EmergencyDispatch
+    EmergencyDispatch -->|Push / Notification| Caregiver
 ```
 
 ---
 
 ## Technology Stack
 
-| Layer | Technologies |
+| Component | Technologies |
 |---|---|
-| **Backend Framework** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2 |
-| **Database & ORM** | SQLite 3 (WAL Mode), SQLAlchemy 2.0 |
-| **Frontend Framework** | React 19, Vite 8, Tailwind CSS, Lucide Icons |
-| **AI Reasoning & Models** | Google Gemini (Primary), Groq / LLaMA (Fallback) |
+| **Backend API** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2 |
+| **Database & ORM** | PostgreSQL (Supabase) in production, SQLite 3 (WAL mode) fallback, SQLAlchemy 2.0 |
+| **Frontend Application** | React 19, Vite 8, Tailwind CSS, Lucide Icons |
+| **Speech Processing & ASR** | Groq Whisper (`whisper-large-v3-turbo`), PyAV (`av`), NumPy, SciPy, Python `wave` |
+| **AI & LLM Providers** | Google Gemini (Primary), Groq / LLaMA (Secondary / Failover), Rule-based Fallback |
 | **Document Processing** | PyMuPDF (`fitz`), Tesseract-OCR (`pytesseract`) |
-| **Speech & Audio** | Web Audio API, Web Speech API, ONNX Runtime Wake Word |
-| **Email Infrastructure** | Resend API (Transactional OTP & Password Reset) |
-| **Container & CI** | Docker, GitHub Actions, Docker Compose |
+| **Job Scheduling** | APScheduler (automated interval evaluation & escalation) |
+| **Containerization & CI** | Docker, GitHub Actions CI Pipeline |
+| **Hosting Platform** | Render (Dockerized Web Service + Static Site) |
 
 ---
 
-## Testing & Verification
+## Voice & Multilingual Support
 
-The repository includes a comprehensive, multi-tiered testing suite covering unit, integration, and security layers:
+ORMA AI employs an adaptive speech pipeline designed to handle varying acoustic conditions:
 
-| Test Suite | Path | Tests | Status |
+### Production Priority
+- **English**: Fully validated end-to-end voice transcription, intent parsing, medication confirmations, and voice synthesis. Recommended for primary production use.
+
+### Beta Languages
+- **Malayalam** (`ml`): Beta voice transcription with script normalization and phonetic recovery heuristics.
+- **Tamil** (`ta`): Beta voice transcription and regional TTS synthesis.
+- **Hindi** (`hi`): Beta voice transcription and conversational handling.
+- **Manglish**: Beta support for English-Malayalam code-switched phrases.
+
+> **Engineering Note**: Multilingual speech recognition accuracy is actively being optimized. Performance can vary based on microphone proximity, background acoustic noise, regional dialects, and utterance duration. Single-word utterances (such as isolated affirmations) present higher acoustic ambiguity than full sentences. Systematic benchmark results are continuously gathered to improve model selection and prompt conditioning.
+
+---
+
+## Safety, Privacy & Medical Disclaimers
+
+### Implemented Security Measures
+- **Tenant Data Isolation**: Database queries, document vectors, and memory extractions strictly enforce `user_id == current_user.id` or require an active, approved caregiver relationship.
+- **Deterministic Medical Guardrails**: The conversational brain enforces strict prompt safety constraints:
+  > *"Never claim that a user has taken a medicine unless the database context explicitly states it is confirmed/taken."*
+- **Emergency Keyword Precedence**: Life-safety keywords immediately trigger emergency alert protocols and bypass generative LLM latency.
+- **Credential & Secret Isolation**: API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, `JWT_SECRET_KEY`) reside exclusively in backend server environments and are never exposed in frontend bundles or client logs.
+
+### Medical Disclaimer
+> **IMPORTANT**: ORMA AI is an assistive technology prototype designed for memory support, routine tracking, and caregiver communication. It is **not a certified medical device** and does not provide clinical diagnoses, medical advice, prescription adjustments, or emergency medical services. ORMA AI must never replace professional healthcare consultations, physician advice, or human caregiver supervision. In acute medical emergencies, immediately contact local emergency services.
+
+---
+
+## Deployment
+
+The production release is hosted on Render across two dedicated services:
+
+- **Frontend Web Application**: [https://app-orma-ai.onrender.com](https://app-orma-ai.onrender.com)
+- **Backend Core API**: [https://orma-ai.onrender.com](https://orma-ai.onrender.com)
+- **Interactive OpenAPI Documentation**: [https://orma-ai.onrender.com/docs](https://orma-ai.onrender.com/docs)
+
+### Continuous Integration
+Every push to the `main` branch is automatically validated by the GitHub Actions CI pipeline:
+- **Backend Test Suite**: Executes 397 regression, unit, intelligence, voice, and RAG tests.
+- **Frontend Verification**: Runs ESLint checks and compiles the production Vite bundle before deployment.
+
+---
+
+## Testing & Quality Assurance
+
+ORMA AI maintains a comprehensive automated testing suite:
+
+| Test Layer | Scope | Tests | CI Status |
 |---|---|---|---|
-| **Core Regression** | `backend/tests/` | 93 items | **PASS** |
-| **Release Gate** | `backend/tests/integration/test_release_gate.py` | 20 checks | **PASS** |
-| **Auth Acceptance** | `backend/tests/authentication/test_authentication_acceptance.py` | 10 modules | **PASS** |
-| **Email OTP Lifecycle** | `backend/tests/authentication/test_email_verification.py` | 20 modules | **PASS** |
-| **Password Reset** | `backend/tests/authentication/test_password_reset.py` | 17 modules | **PASS** |
-| **RAG Integration** | `backend/tests/rag/test_rag_integration.py` | 13 modules | **PASS** |
-| **Voice Pipeline** | `backend/tests/voice/test_voice_pipeline.py` | 24 checks | **PASS** |
-| **Usability & UX** | `backend/tests/integration/test_user_usability.py` | 16 checks | **PASS** |
-| **LLM Routing** | `backend/tests/intelligence/test_llm_routing.py` | 4 matrix checks | **PASS** |
-| **Frontend Build** | `frontend/` (`npm run build`) | Vite Bundle | **PASS (2.3s)** |
+| **Voice & ASR Pipeline** | Audio decoding, silence trimming, loudness normalization, WAV writing | 22 tests | **PASS** |
+| **Intelligence & LLM Routing** | Mode resolution, intent classification, multi-turn followups, fallback | 145 tests | **PASS** |
+| **Medication & Scheduler** | Date-scoping, timezone handling, adherence marking, midnight escalation | 68 tests | **PASS** |
+| **Authentication & RBAC** | JWT validation, password hashing, caregiver link approvals | 72 tests | **PASS** |
+| **Document RAG & Memory** | OCR extraction, chunking, tenant isolation, memory recall | 54 tests | **PASS** |
+| **Full Integration Gate** | End-to-end release validation, API contracts, notification delivery | 36 tests | **PASS** |
+| **Total Automated Suite** | Complete backend test surface | **397 tests** | **PASS (100%)** |
+| **Frontend Code Quality** | ESLint static analysis | 0 errors / 0 warnings | **PASS** |
+| **Frontend Production Build** | Vite production compilation & minification | Clean bundle | **PASS** |
 
-To run the complete test suite locally:
+All 397 backend tests passed in GitHub Actions CI workflow run #20 for release commit `0b6f4df`.
+
+To run the test suites locally:
 
 ```bash
 # Run backend pytest suite
-pytest backend/tests
+pytest backend/tests/ -q
 
-# Run end-to-end release gate
-python backend/tests/integration/test_release_gate.py
-
-# Run frontend build verification
-cd frontend && npm run build
-```
-
----
-
-## Local Development Setup
-
-### 1. Backend Setup
-
-```bash
-cd backend
-python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your GEMINI_API_KEY, RESEND_API_KEY, and JWT_SECRET_KEY
-
-uvicorn main:app --reload --port 8000
-```
-
-### 2. Frontend Setup
-
-```bash
+# Run frontend lint and build
 cd frontend
-npm install
-cp .env.example .env
-# Ensure VITE_API_BASE_URL=http://localhost:8000
-
-npm run dev
+npm run lint
+npm run build
 ```
 
 ---
 
-## Production Status
+## Current Release
 
-- **Codebase Status**: **PRODUCTION READY (100% Verified)**
-- **Private Cloud Deployment**: Ready for deployment (see [docs/deployment.md](docs/deployment.md))
-- **Public Deployment**: Not yet deployed
-- **Native Mobile Apps**: Not started
+### v0.1.0-beta.1
+**Status**: Live Beta (Deployed to Production)
+
+**Release Highlights**:
+- **Production Voice Pipeline**: English voice interaction with WebM/Opus client recording and server-side Whisper processing.
+- **Multilingual Beta**: Initial voice routing for Malayalam, Tamil, Hindi, and Manglish.
+- **Reliable Scheduler Engine**: Timezone-aware medication scheduler featuring 30-minute escalation and a 24-hour recency window that safely accommodates midnight boundary crossings.
+- **Conversational Adherence**: Contextual understanding of affirmations (*"I took it"*) with pronoun reference resolution.
+- **Caregiver Hub**: Linking elderly and caregiver profiles with notification telemetry.
+- **Zero External Audio Dependencies**: Standardized on Python's built-in `wave` module and PyAV for cross-platform container portability.
+- **Automated CI Validation**: 397 passing tests in continuous integration.
 
 ---
 
-## Documentation Links
+## Known Limitations
 
-- [System Architecture](docs/architecture.md)
-- [Authentication & OTP](docs/authentication.md)
-- [Security & Tenant Isolation](docs/security.md)
-- [Personal Document RAG](docs/rag.md)
-- [Multilingual Voice Pipeline](docs/voice.md)
-- [Production Deployment Guide](docs/deployment.md)
+- **Multilingual Voice in Beta**: Non-English speech recognition (Malayalam, Tamil, Hindi) is in Beta. Short, single-word phrases may experience lower accuracy compared to full-sentence utterances.
+- **Acoustic Dependency**: Speech transcription depends on ambient noise levels, microphone hardware quality, and clear speech cadence.
+- **Cloud Free-Tier Cold Starts**: On free-tier hosting environments, backend instances may take a few seconds to spin up if idle.
+- **Not Medical Care**: As stated in the disclaimer, ORMA AI assists with daily routines and memory support; it does not diagnose or manage medical conditions.
+
+---
+
+## Roadmap
+
+- [ ] **Multilingual ASR Robustness**: Ongoing dataset benchmarking and prompt tuning for dialect-specific accuracy.
+- [ ] **Elderly-Friendly Audio UX**: Enhanced silence padding, pause tolerance, and configurable TTS speech rates.
+- [ ] **Advanced Caregiver Workflows**: Weekly adherence analytics summaries and multi-channel SMS/WhatsApp alerts.
+- [ ] **Real-Time Streaming**: Exploration of WebSocket bidirectional audio streaming for ultra-low-latency voice turns.
+- [ ] **Mobile App Package**: Progressive Web App (PWA) offline caching and native container wrappers.
+- [ ] **Progression to v1.0**: Hardening all Beta features toward general availability.
+
+---
+
+## Contributing
+
+Contributions, issue reports, and suggestions are welcome!
+
+1. Fork the repository.
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Ensure all tests pass (`pytest backend/tests/` and `npm run lint`).
+4. Commit your changes (`git commit -m 'feat: add amazing feature'`).
+5. Push to the branch (`git push origin feature/amazing-feature`).
+6. Open a Pull Request.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
