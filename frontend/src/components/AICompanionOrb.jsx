@@ -344,6 +344,16 @@ export default function AICompanionOrb({
   };
 
   useEffect(() => {
+    const handleVoiceEvent = () => {
+      handleManualToggle();
+    };
+    window.addEventListener('orma_toggle_voice', handleVoiceEvent);
+    return () => {
+      window.removeEventListener('orma_toggle_voice', handleVoiceEvent);
+    };
+  }, [isSpeaking, isListening, onInterrupt, onStopSpeaking, onStartConversation, stopRecording, startRecording]);
+
+  useEffect(() => {
     if (onStatusChange) {
       onStatusChange(isListening);
     }
@@ -447,7 +457,7 @@ export default function AICompanionOrb({
 
           {/* 3. Core WebGL Shader Orb Container with Liquid Glass Rim */}
           <div
-            className={`relative flex items-center justify-center w-48 h-48 sm:w-56 sm:h-56 rounded-full backdrop-blur-2xl transition-all duration-500 z-10 border shadow-2xl overflow-hidden ${
+            className={`relative flex items-center justify-center w-40 h-40 sm:w-48 sm:h-48 md:w-52 md:h-52 rounded-full backdrop-blur-2xl transition-all duration-500 z-10 border shadow-2xl overflow-hidden ${
               isSpeaking
                 ? 'border-blue-400/60 shadow-[0_0_40px_rgba(59,130,246,0.35)]'
                 : isListening

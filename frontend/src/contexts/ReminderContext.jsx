@@ -34,6 +34,35 @@ const persistTriggeredKey = (occurrenceKey) => {
   }
 };
 
+// Helper for date-scoped missed occurrence storage key
+const getTodayMissedDateKey = () => {
+  const d = new Date();
+  return `orma_missed_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const getPersistedMissedKeys = () => {
+  try {
+    const key = getTodayMissedDateKey();
+    const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+const persistMissedKey = (missedKey) => {
+  try {
+    const storageKey = getTodayMissedDateKey();
+    const current = getPersistedMissedKeys();
+    current.add(String(missedKey));
+    const serialized = JSON.stringify(Array.from(current));
+    sessionStorage.setItem(storageKey, serialized);
+    localStorage.setItem(storageKey, serialized);
+  } catch (e) {
+    console.warn('[ReminderContext] Storage write bypassed:', e);
+  }
+};
+
 // Remove a triggered reminder occurrence (e.g. on Snooze)
 const removePersistedTriggeredKey = (occurrenceKey) => {
   try {
@@ -59,6 +88,8 @@ export function ReminderProvider({ children }) {
   const timerRef = useRef(null);
   // Initialized with persisted keys to prevent duplicate modals on browser refresh
   const triggeredSet = useRef(getPersistedTriggeredKeys());
+  // Occurrence deduplication set for missed medication toasts and events (persisted across reloads/nav)
+  const triggeredMissedSet = useRef(getPersistedMissedKeys());
 
   useEffect(() => {
     let isMounted = true;
@@ -184,7 +215,16 @@ export function ReminderProvider({ children }) {
       return (currentMinutes - medTime) >= 30;
     });
 
+    const todayDateKey = new Date().toISOString().slice(0, 10);
+
     overdueReminders.forEach(async (med) => {
+      const missedKey = `missed_${med.id}_${todayDateKey}_${med.reminder_time}`;
+      if (triggeredMissedSet.current.has(missedKey)) {
+        return;
+      }
+      triggeredMissedSet.current.add(missedKey);
+      persistMissedKey(missedKey);
+
       addTimelineEvent(med.id, 'Missed', med.medicine_name);
       
       // Remove from pending optimistically
@@ -209,7 +249,11 @@ export function ReminderProvider({ children }) {
       setCurrentReminder(prev => prev?.id === med.id ? null : prev);
       
       window.dispatchEvent(new CustomEvent('orma:toast', { 
-        detail: { type: 'error', message: 'This medication reminder was marked as missed.' } 
+        detail: { 
+          id: missedKey,
+          type: 'error', 
+          message: `Medication "${med.medicine_name || 'scheduled'}" was marked as missed.` 
+        } 
       }));
       window.dispatchEvent(new CustomEvent('orma:remindersUpdated'));
     });
@@ -423,6 +467,7 @@ export function ReminderProvider({ children }) {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         triggeredSet.current = getPersistedTriggeredKeys();
+        triggeredMissedSet.current = getPersistedMissedKeys();
         loadReminders();
         checkScheduleWithRef();
       }

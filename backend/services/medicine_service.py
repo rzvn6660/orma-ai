@@ -3,6 +3,7 @@ from models.medicine import MedicineReminder
 from pydantic import BaseModel
 from typing import List, Optional
 import datetime
+import pytz
 from ai.adherence_service import calculate_confidence_score
 
 # Pydantic models for request/response
@@ -55,10 +56,70 @@ def create_reminder(db: Session, reminder: ReminderCreate, actor_id: str, subjec
     db.refresh(db_reminder)
     return db_reminder
 
+def resolve_medication_daily_status(
+    reminder: MedicineReminder,
+    target_date: Optional[datetime.date] = None,
+    tz_name: Optional[str] = None
+) -> bool:
+    """
+    Determines whether a medication is taken for a specific calendar date (defaults to today in user timezone).
+    Recurring medications marked taken on an earlier day roll over to PENDING (False) for today's occurrence,
+    while their historical taken_at timestamp is preserved.
+    """
+    if not getattr(reminder, "taken_status", False):
+        return False
+
+    taken_at = getattr(reminder, "taken_at", None)
+    if not taken_at:
+        return bool(reminder.taken_status)
+
+    tz_str = tz_name or getattr(reminder, "timezone", "UTC") or "UTC"
+    try:
+        user_tz = pytz.timezone(tz_str)
+    except Exception:
+        user_tz = pytz.utc
+
+    # Normalize taken_at to local date
+    if taken_at.tzinfo is None:
+        taken_at_utc = pytz.utc.localize(taken_at)
+    else:
+        taken_at_utc = taken_at.astimezone(pytz.utc)
+    taken_local_date = taken_at_utc.astimezone(user_tz).date()
+
+    if target_date is None:
+        target_date = datetime.datetime.now(user_tz).date()
+
+    freq = (getattr(reminder, "frequency", "") or "").strip().lower()
+    if freq in ("one-time", "once", "single"):
+        return True
+
+    # For recurring medications, taken status only applies if taken on the target date
+    return taken_local_date == target_date
+
 def get_reminders_for_users(db: Session, subject_ids: list[str], skip: int = 0, limit: int = 100):
-    return db.query(MedicineReminder).filter(
+    reminders = db.query(MedicineReminder).filter(
         (MedicineReminder.subject_id.in_(subject_ids)) | (MedicineReminder.elder_id.in_(subject_ids))
     ).offset(skip).limit(limit).all()
+
+    results = []
+    for r in reminders:
+        effective_taken = resolve_medication_daily_status(r)
+        results.append(ReminderResponse(
+            id=r.id,
+            medicine_name=r.medicine_name,
+            dosage=r.dosage,
+            reminder_time=r.reminder_time,
+            purpose=r.purpose,
+            frequency=r.frequency,
+            notes=r.notes,
+            taken_status=effective_taken,
+            taken_at=r.taken_at,
+            created_at=r.created_at,
+            timezone=r.timezone or "UTC",
+            adherence_pattern_flags=r.adherence_pattern_flags,
+            confirmation_method=r.confirmation_method,
+        ))
+    return results
 
 def mark_taken(db: Session, reminder_id: int, subject_id: str):
     db_reminder = db.query(MedicineReminder).filter(
@@ -126,29 +187,41 @@ def update_reminder(db: Session, reminder_id: int, subject_id: str, updates: dic
         db.refresh(db_reminder)
     return db_reminder
 
-def get_latest_pending_medicine(db: Session):
-    return db.query(MedicineReminder).filter(MedicineReminder.taken_status == False).first()
+def get_latest_pending_medicine(db: Session, user_id: Optional[str] = None):
+    query = db.query(MedicineReminder)
+    if user_id:
+        query = query.filter((MedicineReminder.subject_id == user_id) | (MedicineReminder.elder_id == user_id))
+    all_meds = query.all()
+    for m in all_meds:
+        if not resolve_medication_daily_status(m):
+            return m
+    return None
 
-def get_all_pending_medicines(db: Session):
-    # For today only optimally, but just getting all pending for now
-    return db.query(MedicineReminder).filter(MedicineReminder.taken_status == False).all()
+def get_all_pending_medicines(db: Session, user_id: Optional[str] = None):
+    query = db.query(MedicineReminder)
+    if user_id:
+        query = query.filter((MedicineReminder.subject_id == user_id) | (MedicineReminder.elder_id == user_id))
+    all_meds = query.all()
+    return [m for m in all_meds if not resolve_medication_daily_status(m)]
 
-def get_all_taken_medicines(db: Session):
-    # Today's taken medicines
-    today = datetime.datetime.utcnow().date()
-    # If taken_at is set, it's taken
-    return db.query(MedicineReminder).filter(MedicineReminder.taken_status == True).all()
+def get_all_taken_medicines(db: Session, user_id: Optional[str] = None):
+    query = db.query(MedicineReminder)
+    if user_id:
+        query = query.filter((MedicineReminder.subject_id == user_id) | (MedicineReminder.elder_id == user_id))
+    all_meds = query.all()
+    return [m for m in all_meds if resolve_medication_daily_status(m)]
 
-def mark_latest_pending_taken(db: Session):
+def mark_latest_pending_taken(db: Session, user_id: Optional[str] = None):
     """
-    Finds the most recent pending medicine and marks it as taken.
+    Finds the most recent pending medicine for today and marks it as taken.
     Useful for voice confirmation without knowing the exact ID.
     """
-    db_reminder = db.query(MedicineReminder).filter(MedicineReminder.taken_status == False).first()
+    db_reminder = get_latest_pending_medicine(db, user_id=user_id)
     if db_reminder:
         db_reminder = calculate_confidence_score(db_reminder, "voice")
         db_reminder.taken_status = True
         db_reminder.taken_at = datetime.datetime.utcnow()
+        db_reminder.adherence_pattern_flags = None
         db.commit()
         db.refresh(db_reminder)
     return db_reminder

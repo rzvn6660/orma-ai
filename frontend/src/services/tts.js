@@ -183,7 +183,26 @@ class TTSService {
       if (!text) return;
 
       const callbacks = typeof options === 'function' ? { onEnd: options } : options;
-      const targetLangCode = callbacks.langCode || null;
+      let targetLangCode = callbacks.langCode || null;
+
+      // Auto-detect native script if language was not provided or set to auto
+      if (!targetLangCode || targetLangCode === 'auto') {
+        if (/[\u0D00-\u0D7F]/.test(text)) {
+          targetLangCode = 'ml-IN';
+        } else if (/[\u0900-\u097F]/.test(text)) {
+          targetLangCode = 'hi-IN';
+        } else if (/[\u0600-\u06FF]/.test(text)) {
+          targetLangCode = 'ar-SA';
+        } else if (/[\u0B80-\u0BFF]/.test(text)) {
+          targetLangCode = 'ta-IN';
+        } else if (/[\u0C00-\u0C7F]/.test(text)) {
+          targetLangCode = 'te-IN';
+        } else if (/[\u0C80-\u0CFF]/.test(text)) {
+          targetLangCode = 'kn-IN';
+        } else {
+          targetLangCode = 'en-IN';
+        }
+      }
 
       try {
         localStorage.setItem('orma_last_tts_message', text);

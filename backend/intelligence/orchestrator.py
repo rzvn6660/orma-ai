@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import uuid
 import asyncio
@@ -47,6 +48,40 @@ class IntelligenceOrchestrator:
         req_id = str(uuid.uuid4())[:8]
         logger.info(f"--- [ORMA BRAIN req_{req_id}] Processing request for user {user_id} ---")
 
+        # Centralized language resolution for current utterance
+        # Respects explicit current-turn language (ml, ta, hi, en, ar) without independent rediscovery
+        from services.transcription_service import normalize_language_code
+        norm_incoming = normalize_language_code(language)
+        if norm_incoming in ("ml", "ta", "hi", "en", "ar"):
+            # If user explicitly selected or ASR determined explicit language, respect it
+            # Only adapt if incoming is 'en' but text contains distinct non-Latin script
+            if norm_incoming == "en" and re.search(r"[\u0D00-\u0D7F]", text):
+                language = "ml"
+            elif norm_incoming == "en" and re.search(r"[\u0900-\u097F]", text):
+                language = "hi"
+            elif norm_incoming == "en" and re.search(r"[\u0B80-\u0BFF]", text):
+                language = "ta"
+            else:
+                language = norm_incoming
+        else:
+            # AUTO mode resolution based on utterance script and phonetic markers
+            if re.search(r"[\u0D00-\u0D7F]", text) or re.search(r"\b(marunnu|adutha|enthaanu|enthaan|kazhicho|kazhinjo|eathaanu|kazhichu|eduthu|njan|athu|marunn)\b", text, re.I):
+                language = "ml"
+            elif re.search(r"[\u0B80-\u0BFF]", text):
+                from services.transcription_service import MALAYALAM_PHONETIC_IN_TAMIL
+                if any(re.search(p, text) for p in MALAYALAM_PHONETIC_IN_TAMIL):
+                    language = "ml"
+                else:
+                    language = "ta"
+            elif re.search(r"[\u0900-\u097F]", text):
+                language = "hi"
+            elif re.search(r"[\u0600-\u06FF]", text):
+                language = "ar"
+            else:
+                language = "en"
+
+        logger.info(f"[ORMA BRAIN DIAGNOSTIC req_{req_id}] utterance='{text[:40]}' | effective_language='{language}'")
+
         # T1: Transcription starts | T2: Transcription completed (STT)
         t1 = time.perf_counter()
         t2 = t1 
@@ -75,6 +110,8 @@ class IntelligenceOrchestrator:
                     "medications": followup_res["referenced_medications"],
                     "response_text": response_text
                 })
+            exec_m = followup_res.get("execution_mode", ExecutionMode.TOOL_ONLY)
+            tool_req = (exec_m == ExecutionMode.TOOL_ONLY)
             t3 = time.perf_counter()
             t4 = t3
             t5 = t4
@@ -86,11 +123,11 @@ class IntelligenceOrchestrator:
             return {
                 "response": response_text,
                 "intent": followup_res.get("intent", "FOLLOW_UP"),
-                "execution_mode": ExecutionMode.TOOL_ONLY,
+                "execution_mode": exec_m,
                 "llm_called": False,
                 "llm_required": False,
-                "tool_required": True,
-                "tool_name": "conversational_reference_resolver",
+                "tool_required": tool_req,
+                "tool_name": "conversational_reference_resolver" if tool_req else "none",
                 "language": language,
                 "gen_meta": {"resolver": "conversational_reference"},
                 "timestamps": {
@@ -143,7 +180,12 @@ class IntelligenceOrchestrator:
         time_period = meta.get("time_period", "today")
         t3 = time.perf_counter() # Language & Intent detection completed
 
-        is_next_med_query = any(p in low_text for p in ["next medicine", "next dose", "upcoming medicine", "upcoming", "what is my next medicine", "what's my next medicine", "next scheduled medicine"])
+        is_next_med_query = any(p in low_text for p in [
+            "next medicine", "next dose", "upcoming medicine", "upcoming", 
+            "what is my next medicine", "what's my next medicine", "next scheduled medicine",
+            "അടുത്ത മരുന്ന്", "അടുത്ത ഡോസ്", "അടുത്തത്", "എന്റെ അടുത്ത മരുന്ന്", "അടുത്ത മരുന്ന് ഏതാണ്",
+            "adutha marunnu", "adutha dose", "marunnu enthaanu", "adutha marunnu enthaanu", "en adutha marunnu"
+        ])
 
         # 5. Resolve Execution Mode
         mode_data = mode_resolver.resolve_execution_mode(
@@ -240,7 +282,14 @@ class IntelligenceOrchestrator:
                 history_lines.append(f"{role_label}: {turn['content']}")
 
         cmce_context_header = f"CONVERSATION CONTEXT:\nActor Speaking: {ctx.actor_name} ({ctx.actor_role})\nConversation Subject: {ctx.subject_name} ({ctx.subject_role})\n"
-        memory_context = cmce_context_header + "\n".join(med_context_lines) + "\n" + "\n".join(history_lines) + "\n\n" + context_builder.build_context_string(retrieved_memories)
+        context_parts = [cmce_context_header]
+        if tool_required and med_context_lines:
+            context_parts.extend(med_context_lines)
+        if history_lines:
+            context_parts.extend(history_lines)
+        if (intent in ["Memory", "EXPLICIT_MEMORY", "MEMORY_QUERY"] or "memory" in intent.lower()) and retrieved_memories:
+            context_parts.append("\n" + context_builder.build_context_string(retrieved_memories))
+        memory_context = "\n".join(context_parts)
 
         # 9. Mode-Specific Execution Branching
         llm_called = False
@@ -294,7 +343,34 @@ class IntelligenceOrchestrator:
 
         elif exec_mode == ExecutionMode.DIRECT:
             logger.info(f"[ORMA BRAIN req_{req_id}] Executing DIRECT acknowledgment for text '{text}'")
-            response_text = "Hello! I am Orma, your healthcare companion. How can I help you today?"
+            is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+            if intent == "ACKNOWLEDGMENT":
+                response_text = "ശരി." if is_ml else "Alright."
+            elif intent == "THANKS":
+                response_text = "തീർച്ചയായും, സന്തോഷം!" if is_ml else "You're welcome!"
+            elif intent == "FAREWELL":
+                response_text = "വിട, ശ്രദ്ധിക്കുക!" if is_ml else "Goodbye! Take care."
+            elif intent == "REPEAT_REQUEST":
+                last_assistant_msg = next((m["content"] for m in reversed(history) if m.get("role") in ("assistant", "Orma")), "")
+                if last_assistant_msg:
+                    response_text = f"തീർച്ചയായും: {last_assistant_msg}" if is_ml else f"Certainly: {last_assistant_msg}"
+                else:
+                    response_text = "നിങ്ങളെ സഹായിക്കാൻ ഞാൻ ഇവിടെയുണ്ട്." if is_ml else "I said that I am here and ready to help you."
+            elif intent == "CONVERSATION_RECALL":
+                user_turns = [m["content"] for m in history if m.get("role") in ("user", "User") and m.get("content", "").strip().lower() != text.strip().lower()]
+                if user_turns:
+                    response_text = f"നിങ്ങൾ അവസാനം പറഞ്ഞത്: \"{user_turns[-1]}\" എന്നാണ്." if is_ml else f"You just told me: \"{user_turns[-1]}\"."
+                else:
+                    response_text = "നമ്മൾ ഇപ്പോൾ സംസാരിച്ചു തുടങ്ങിയിട്ടേ ഉള്ളൂ." if is_ml else "We just started our conversation. What would you like to talk about?"
+            elif intent == "USER_IDENTITY":
+                user_name = ctx.subject_name or ctx.actor_name or "User"
+                response_text = f"നിങ്ങളുടെ പേര് {user_name} എന്നാണ്." if is_ml else f"Your name is {user_name}."
+            elif intent == "GREETING":
+                response_text = "നമസ്കാരം! ഞാൻ ഇവിടെയുണ്ട്. ഇന്ന് നിങ്ങളെ എങ്ങനെ സഹായിക്കണം?" if is_ml else "Hello! It's nice to hear from you. How can I help today?"
+            elif is_ml:
+                response_text = "ശരി."
+            else:
+                response_text = "Alright."
             conversation_manager.add_message(user_id, "assistant", response_text)
             t6 = t5
             t7 = t6
@@ -354,7 +430,11 @@ class IntelligenceOrchestrator:
                 t7 = time.perf_counter()
                 response_text = final_response
             else:
-                response_text = "I am currently running in offline tool mode. How can I assist you with your schedule?"
+                fb_res = await ai_manager.fallback.generate_response(
+                    prompt=f"{memory_context}\nUser: {text}",
+                    system_prompt=f"Language: {language}"
+                )
+                response_text = fb_res.get("text") or ("ക്ഷമിക്കണം, എനിക്ക് അത് വ്യക്തമായി മനസ്സിലായില്ല." if (language and language.startswith("ml")) else "I didn't quite catch that. Could you please rephrase or tell me what you need help with?")
             conversation_manager.add_message(user_id, "assistant", response_text)
             t8 = time.perf_counter()
 
@@ -400,6 +480,14 @@ class IntelligenceOrchestrator:
             conversation_manager.add_message(user_id, "assistant", response_text)
             t8 = time.perf_counter() # Response processing completed
             llm_called = gen_meta.get("llm_called", False)
+
+            if tool_result and tool_result.get("medications"):
+                conversation_manager.save_interaction_context(user_id, {
+                    "intent": intent,
+                    "tool": selected_tool_name,
+                    "medications": tool_result["medications"],
+                    "response_text": response_text
+                })
 
             # Schedule memory extraction (await for explicit Memory intent, non-blocking background for general turns)
             if intent in ["Memory", "GENERAL_CONVERSATION", "Family", "Personal", "Reminder", "Appointment"]:

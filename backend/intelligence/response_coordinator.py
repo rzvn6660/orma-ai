@@ -5,16 +5,16 @@ from typing import Dict, Any, List, Tuple
 logger = logging.getLogger(__name__)
 
 LANG_INSTRUCTIONS = {
-    "en": "Respond in clear, warm English.",
-    "en-in": "Respond in clear, warm English.",
-    "ml": "Respond in natural, warm Malayalam (മലയാളം). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "ml-in": "Respond in natural, warm Malayalam (മലയാളം). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "hi": "Respond in natural, warm Hindi (हिन्दी). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "hi-in": "Respond in natural, warm Hindi (हिन्दी). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "ar": "Respond in natural, warm Arabic (العربية). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "ar-sa": "Respond in natural, warm Arabic (العربية). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "ta": "Respond in natural, warm Tamil (தமிழ்). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
-    "ta-in": "Respond in natural, warm Tamil (தமிழ்). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
+    "en": "Respond in clear, warm English. CRITICAL: You must respond in English, even if previous turns in context were in another language.",
+    "en-in": "Respond in clear, warm English. CRITICAL: You must respond in English, even if previous turns in context were in another language.",
+    "ml": "Respond in natural, warm Malayalam (മലയാളം). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Malayalam, even if previous turns in context were in English, Tamil, or another language.",
+    "ml-in": "Respond in natural, warm Malayalam (മലയാളം). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Malayalam, even if previous turns in context were in English, Tamil, or another language.",
+    "hi": "Respond in natural, warm Hindi (हिन्दी). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Hindi, even if previous turns in context were in another language.",
+    "hi-in": "Respond in natural, warm Hindi (हिन्दी). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Hindi, even if previous turns in context were in another language.",
+    "ar": "Respond in natural, warm Arabic (العربية). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Arabic, even if previous turns in context were in another language.",
+    "ar-sa": "Respond in natural, warm Arabic (العربية). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Arabic, even if previous turns in context were in another language.",
+    "ta": "Respond in natural, warm Tamil (தமிழ்). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Tamil, even if previous turns in context were in another language.",
+    "ta-in": "Respond in natural, warm Tamil (தமிழ்). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times. CRITICAL: You must respond in Tamil, even if previous turns in context were in another language.",
     "te": "Respond in natural, warm Telugu (తెలుగు). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
     "te-in": "Respond in natural, warm Telugu (తెలుగు). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
     "kn": "Respond in natural, warm Kannada (കನ್ನಡ). Never translate or corrupt medicine names, dosage numbers (e.g. 500 mg), or times.",
@@ -146,7 +146,52 @@ class ResponseCoordinator:
                         f"User: {text}\n"
                         "Assistant:"
                     )
-                elif intent == "Memory":
+                elif intent == "ACKNOWLEDGMENT":
+                    prompt = (
+                        "System: You are Orma, a warm AI healthcare companion for elderly users.\n"
+                        "Task: The user acknowledged your previous message. Respond with a natural, very short acknowledgment (such as 'Alright.' or 'Okay. I\\'m here if you need anything else.'). Do NOT repeat medication information. Do NOT list your capabilities.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
+                elif intent == "THANKS":
+                    prompt = (
+                        "System: You are Orma, a warm AI healthcare companion for elderly users.\n"
+                        "Task: The user thanked you. Respond with a warm, polite 'You\\'re welcome!' in 1 short sentence.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
+                elif intent == "REPEAT_REQUEST":
+                    prompt = (
+                        "System: You are Orma, a warm AI healthcare companion for elderly users.\n"
+                        "Task: Repeat your previous relevant statement clearly and concisely.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
+                elif intent == "CORRECTION":
+                    prompt = (
+                        "System: You are Orma, a warm AI healthcare companion for elderly users.\n"
+                        "Task: The user corrected their previous statement. Acknowledge the correction and answer the corrected request directly based on the context data in 1-2 concise sentences.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
+                elif intent == "USER_IDENTITY":
+                    prompt = (
+                        "System: You are Orma, a warm AI healthcare companion for elderly users.\n"
+                        "Task: Answer the user's question about their identity or name directly and warmly in 1 concise sentence based on the context.\n"
+                        f"{lang_instruction}\n"
+                        f"Context: {memory_context}\n"
+                        f"User: {text}\n"
+                        "Assistant:"
+                    )
+                elif intent in ["Memory", "EXPLICIT_MEMORY", "MEMORY_QUERY"]:
                     prompt = (
                         "System: You are Orma, a warm, polite, and reassuring AI healthcare companion for elderly users.\n"
                         "Task: If the user is asking you to remember something, acknowledge and confirm warmly that you have remembered it for them. "
@@ -169,7 +214,8 @@ class ResponseCoordinator:
                 return await self._call_llm_text(prompt, language)
 
         # 4. Fallback
-        return "I am here to help you.", {"llm_called": False, "provider": "fallback"}
+        fallback_msg = "നിങ്ങളെ സഹായിക്കാൻ ഞാൻ ഇവിടെയുണ്ട്. എന്ത് സഹായമാണ് വേണ്ടത്?" if (language and language.lower().startswith("ml")) else "I am here to help you. How can I assist you today?"
+        return fallback_msg, {"llm_called": False, "provider": "fallback"}
 
     async def _call_llm_text(self, prompt: str, language: str) -> Tuple[str, Dict[str, Any]]:
         try:
@@ -182,6 +228,7 @@ class ResponseCoordinator:
         except Exception as e:
             logger.error(f"[ResponseCoordinator] LLM failed: {e}")
             
-        return "I am here to help you.", {"llm_called": False, "provider": "fallback"}
+        fallback_msg = "നിങ്ങളെ സഹായിക്കാൻ ഞാൻ ഇവിടെയുണ്ട്. എന്ത് സഹായമാണ് വേണ്ടത്?" if (language and language.lower().startswith("ml")) else "I am here to help you. How can I assist you today?"
+        return fallback_msg, {"llm_called": False, "provider": "fallback"}
 
 response_coordinator = ResponseCoordinator()

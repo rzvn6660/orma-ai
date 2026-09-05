@@ -31,10 +31,13 @@ export const healthApi = {
 };
 
 export const speechApi = {
-  transcribe: async (audioBlob, language = null) => {
+  transcribe: async (audioBlob, language = null, conversationLanguage = null) => {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
-    if (language) formData.append('language', language);
+    if (language && language !== 'auto') formData.append('language', language);
+    if (conversationLanguage && conversationLanguage !== 'auto') {
+      formData.append('conversation_language', conversationLanguage);
+    }
 
     const { data } = await api.post('/api/speech/transcribe', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -59,6 +62,14 @@ export const chatApi = {
     }
     const { data } = await api.post('/api/chat', payload);
     return data;
+  },
+  resetSession: async () => {
+    try {
+      const { data } = await api.post('/api/chat/reset');
+      return data;
+    } catch {
+      return null;
+    }
   }
 };
 

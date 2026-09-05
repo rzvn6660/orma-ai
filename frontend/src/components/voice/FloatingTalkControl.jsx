@@ -84,15 +84,20 @@ export default function FloatingTalkControl({
                     </span>
                   </>
                 ) : isListening || turnState === 'listening' ? (
-                  <>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('orma_toggle_voice'))}
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    aria-label="Listening · Tap to Stop"
+                  >
                     <span className="relative flex h-3 w-3 shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500" />
                     </span>
                     <span className="text-xs sm:text-sm font-bold text-cyan-300 tracking-tight">
-                      Listening...
+                      Listening · Tap to Stop
                     </span>
-                  </>
+                  </button>
                 ) : (
                   <>
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
@@ -109,23 +114,23 @@ export default function FloatingTalkControl({
                   type="button"
                   onClick={onInterrupt}
                   aria-label="Interrupt ORMA speaking"
-                  className="px-3 py-1.5 rounded-full bg-sky-500/25 hover:bg-sky-500/40 text-sky-200 border border-sky-400/40 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                  className="px-3 py-1.5 rounded-full bg-sky-500/25 hover:bg-sky-500/40 text-sky-200 border border-sky-400/40 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 select-none"
                 >
                   <VolumeX className="w-3.5 h-3.5" />
-                  <span>Interrupt</span>
+                  <span>Tap to Interrupt</span>
                 </button>
               )}
 
-              {/* End Conversation Button */}
+              {/* Stop Conversation Button */}
               {onEndConversation && (
                 <button
                   type="button"
                   onClick={onEndConversation}
-                  aria-label="End continuous conversation"
-                  className="px-3 sm:px-4 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/35 text-red-300 hover:text-white border border-red-500/40 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                  aria-label="Stop continuous conversation"
+                  className="px-3 sm:px-4 py-1.5 rounded-full bg-red-500/20 hover:bg-red-500/35 text-red-300 hover:text-white border border-red-500/40 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 select-none"
                 >
                   <PhoneOff className="w-3.5 h-3.5" />
-                  <span>End</span>
+                  <span>Stop Conversation</span>
                 </button>
               )}
             </motion.div>

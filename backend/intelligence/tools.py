@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from models.medicine import MedicineReminder
 from models.health_event import HealthEvent
 from models.user import User
+from services.medicine_service import resolve_medication_daily_status
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,8 @@ class HealthcareTools:
         ).all()
         
         filtered = [m for m in medicines if is_med_in_time_period(m, time_period)]
-        taken = [m for m in filtered if m.taken_status]
-        pending = [m for m in filtered if not m.taken_status]
+        taken = [m for m in filtered if resolve_medication_daily_status(m)]
+        pending = [m for m in filtered if not resolve_medication_daily_status(m)]
         
         return {
             "tool": "medication_schedule",
@@ -125,8 +126,8 @@ class HealthcareTools:
                     "name": m.medicine_name,
                     "dosage": m.dosage or "standard dose",
                     "scheduled_time": m.reminder_time,
-                    "taken": m.taken_status,
-                    "status": "TAKEN" if m.taken_status else "PENDING"
+                    "taken": resolve_medication_daily_status(m),
+                    "status": "TAKEN" if resolve_medication_daily_status(m) else "PENDING"
                 } for m in filtered
             ]
         }
@@ -168,14 +169,7 @@ class HealthcareTools:
 
         for m in today_meds:
             times = get_med_times(m) or ["Standard time"]
-            is_taken = bool(m.taken_status)
-            if is_taken and m.taken_at:
-                try:
-                    taken_local = m.taken_at.replace(tzinfo=pytz.utc).astimezone(user_tz).date() if m.taken_at.tzinfo is None else m.taken_at.astimezone(user_tz).date()
-                    if taken_local != local_today:
-                        is_taken = False
-                except Exception:
-                    pass
+            is_taken = resolve_medication_daily_status(m, target_date=local_today, tz_name=tz_name)
 
             for t_str in times:
                 mins = parse_time_to_minutes(t_str)
@@ -362,8 +356,8 @@ class HealthcareTools:
         ).all()
         
         filtered = [m for m in medicines if is_med_in_time_period(m, time_period)]
-        taken = [m for m in filtered if m.taken_status]
-        pending = [m for m in filtered if not m.taken_status]
+        taken = [m for m in filtered if resolve_medication_daily_status(m)]
+        pending = [m for m in filtered if not resolve_medication_daily_status(m)]
         
         return {
             "tool": "medication_status",
@@ -378,7 +372,7 @@ class HealthcareTools:
                     "name": m.medicine_name,
                     "dosage": m.dosage or "standard dose",
                     "scheduled_time": m.reminder_time,
-                    "status": "TAKEN" if m.taken_status else ("SNOOZED" if m.adherence_pattern_flags == "snoozed" else "PENDING")
+                    "status": "TAKEN" if resolve_medication_daily_status(m) else ("SNOOZED" if m.adherence_pattern_flags == "snoozed" else "PENDING")
                 } for m in filtered
             ]
         }
@@ -391,7 +385,7 @@ class HealthcareTools:
         ).all()
         
         total = len(medicines)
-        taken = sum(1 for m in medicines if m.taken_status)
+        taken = sum(1 for m in medicines if resolve_medication_daily_status(m))
         pending = total - taken
         pct = int((taken / total) * 100) if total > 0 else 100
         

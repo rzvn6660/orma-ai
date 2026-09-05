@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { isNotificationReadInStorage } from '../utils/notificationStorage';
 
 export default function GlobalToast() {
   const [toasts, setToasts] = useState([]);
@@ -8,28 +9,49 @@ export default function GlobalToast() {
 
   useEffect(() => {
     const handleToast = (e) => {
-      const { type = 'info', message } = e.detail || {};
+      const { type = 'info', message, id: incomingId, notification_id, is_read } = e.detail || {};
       if (!message) return;
 
-      // Deduplication: prevent identical messages within 1.5 seconds
+      // Suppress toast if notification is already read
+      if (is_read === true) return;
+      if (incomingId && isNotificationReadInStorage(incomingId)) return;
+      if (notification_id && isNotificationReadInStorage(notification_id)) return;
+
       const now = Date.now();
-      const lastTime = recentToastsRef.current.get(message);
-      if (lastTime && now - lastTime < 1500) {
+      const dedupKey = incomingId || `${type}_${message.trim()}`;
+
+      // Deduplication:
+      // If incomingId is provided, enforce a 10-minute window.
+      // If inferred from message, enforce an 8-second window.
+      const windowMs = incomingId ? 10 * 60 * 1000 : 8000;
+      const lastTime = recentToastsRef.current.get(dedupKey);
+      if (lastTime && (now - lastTime) < windowMs) {
         return;
       }
-      recentToastsRef.current.set(message, now);
+      recentToastsRef.current.set(dedupKey, now);
 
-      // Clean up old deduplication entries
-      if (recentToastsRef.current.size > 20) {
-        recentToastsRef.current.clear();
-      }
+      // Prevent identical message already visible on screen
+      setToasts(prev => {
+        if (prev.some(t => t.message === message)) {
+          return prev;
+        }
+        const toastId = incomingId || `${now}-${Math.random().toString(36).substr(2, 9)}`;
+        return [...prev.slice(-3), { id: toastId, type, message }];
+      });
 
-      const id = `${now}-${Math.random().toString(36).substr(2, 9)}`;
-      setToasts(prev => [...prev.slice(-3), { id, type, message }]); // keep max 4 toasts at once
-
+      const autoDismissId = incomingId || dedupKey;
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 4000);
+        setToasts(prev => prev.filter(t => t.id !== autoDismissId && t.id !== incomingId));
+      }, 4500);
+
+      // Periodically prune stale entries from recentToastsRef (> 15 minutes)
+      if (recentToastsRef.current.size > 50) {
+        for (const [key, timestamp] of recentToastsRef.current.entries()) {
+          if (now - timestamp > 15 * 60 * 1000) {
+            recentToastsRef.current.delete(key);
+          }
+        }
+      }
     };
 
     window.addEventListener('orma:toast', handleToast);

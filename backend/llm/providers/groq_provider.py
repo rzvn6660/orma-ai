@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import time
 import uuid
@@ -14,13 +15,21 @@ class GroqProvider(BaseAIProvider):
     """
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key if api_key is not None else os.environ.get("GROQ_API_KEY", "")
-        self.model = model or os.environ.get("GROQ_MODEL") or os.environ.get("AI_MODEL", "llama-3.3-70b-versatile")
+        configured_model = model or os.environ.get("GROQ_MODEL") or os.environ.get("AI_MODEL", "qwen/qwen3.8-27b")
+        if configured_model in ("llama-3.3-70b-versatile", "groq/compound-mini"):
+            configured_model = "qwen/qwen3.8-27b"
+        self.model = configured_model
         self.base_url = "https://api.groq.com/openai/v1/chat/completions"
         self._client: Optional[httpx.AsyncClient] = None
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=10.0)
+        try:
+            curr_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            curr_loop = None
+        if self._client is None or self._client.is_closed or getattr(self, "_client_loop", None) != curr_loop:
+            self._client = httpx.AsyncClient(timeout=8.0)
+            self._client_loop = curr_loop
         return self._client
 
     @property
@@ -71,7 +80,7 @@ class GroqProvider(BaseAIProvider):
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": max_tokens,
+            "max_tokens": max(max_tokens, 250),
             "temperature": temperature
         }
 

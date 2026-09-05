@@ -15,16 +15,16 @@ class MemoryRetriever:
     INTENT_CATEGORY_MAP = {
         "Appointment": ["Appointment", "Health", "Doctor", "Important Event"],
         "Family": ["Family", "Caregiver", "Personal", "Relationships", "RELATIONSHIPS"],
-        "Medicine": ["Medicine", "Health", "Preference"],
+        "Medicine": ["Medicine", "Health", "Preference", "Preferences"],
         "HealthRecord": ["Health", "Medicine", "Appointment"],
         "Emergency": ["Health", "Medicine", "Family", "Personal"],
-        "GeneralChat": ["Personal", "Preference", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
-        "GENERAL_CONVERSATION": ["Personal", "Preference", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
-        "GREETING": ["Personal", "Preference"],
-        "Reminder": ["Temporary", "Preference", "Medicine", "Appointment"],
-        "Memory": ["Personal", "Family", "Relationships", "RELATIONSHIPS", "Health", "Medicine", "Appointment", "Preference", "Important Event", "Temporary", "Conversation", "Custom"],
-        "Caregiver": ["Family", "Caregiver", "Health", "Preference"],
-        "Settings": ["Preference", "Custom"]
+        "GeneralChat": ["Personal", "Preference", "Preferences", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
+        "GENERAL_CONVERSATION": ["Personal", "Preference", "Preferences", "Conversation", "Family", "Relationships", "RELATIONSHIPS", "Important Event"],
+        "GREETING": ["Personal", "Preference", "Preferences"],
+        "Reminder": ["Temporary", "Preference", "Preferences", "Medicine", "Appointment"],
+        "Memory": ["Personal", "Family", "Relationships", "RELATIONSHIPS", "Health", "Medicine", "Appointment", "Preference", "Preferences", "Important Event", "Temporary", "Conversation", "Custom"],
+        "Caregiver": ["Family", "Caregiver", "Health", "Preference", "Preferences"],
+        "Settings": ["Preference", "Preferences", "Custom"]
     }
 
     def __init__(self):

@@ -185,6 +185,13 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
     localStorage.getItem('orma_language_pref') || 
     'auto'
   );
+  const [conversationLang, setConversationLang] = useState(() => {
+    const pref = user?.notification_preferences?.voice_language || 
+                 localStorage.getItem('orma_voice_language') || 
+                 localStorage.getItem('orma_language_pref') || 
+                 'auto';
+    return pref.toLowerCase().startsWith('ml') ? 'ml' : 'en';
+  });
   const [timeContext, setTimeContext] = useState(getTimeContext(user?.timezone));
   const [todayEvents, setTodayEvents] = useState([]);
   const [medicines, setMedicines] = useState([]);
@@ -318,18 +325,54 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
     if (isTurnInProgressRef.current) return;
     isTurnInProgressRef.current = true;
     const currentSession = conversationSessionIdRef.current;
-
     setTurnState('thinking');
     try {
-      const languageParam = languageMode !== 'auto' ? languageMode : undefined;
-      const data = await transcribe(blob, languageParam);
+      const explicitLang = languageMode !== 'auto' ? languageMode : null;
+      const convLang = conversationLang || null;
+      const data = await transcribe(blob, explicitLang, convLang);
 
       if (conversationModeRef.current && conversationSessionIdRef.current !== currentSession) {
         return;
       }
 
+      // Check if ASR quality validation triggered a safety clarification (Sections 8, 10 & 15)
+      if (data?.needs_clarification && data?.clarification_prompt) {
+        const clarLang = (data.normalized_language || conversationLang || 'en').toLowerCase();
+        const clarVoice = clarLang.startsWith('ml') ? 'ml-IN' : (clarLang.startsWith('ta') ? 'ta-IN' : (clarLang.startsWith('hi') ? 'hi-IN' : 'en-IN'));
+        const clarMsg = {
+          id: Date.now() + 1,
+          sender: 'ai',
+          text: data.clarification_prompt,
+          langCode: clarVoice,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, clarMsg]);
+        try {
+          tts.speak(clarMsg.text, {
+            langCode: clarVoice,
+            onStart: () => setIsSpeaking(true),
+            onEnd: () => {
+              setIsSpeaking(false);
+              if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
+                setTurnState('listening');
+                setListenTrigger(prev => prev + 1);
+              } else {
+                setTurnState('idle');
+              }
+            },
+            onError: () => {
+              setIsSpeaking(false);
+              setTurnState('idle');
+            }
+          });
+        } catch (e) {
+          console.warn("Clarification speech error:", e);
+        }
+        return;
+      }
+
       const userText = data?.transcription;
-      const rawDetectedLang = data?.detected_language || 'en';
+      const rawDetectedLang = (data?.detected_language || 'en').toLowerCase().trim();
       
       if (!userText || userText.trim() === '') {
         if (conversationModeRef.current && conversationSessionIdRef.current === currentSession) {
@@ -346,9 +389,28 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
         return;
       }
 
+      const isMalayalamInput = rawDetectedLang.startsWith('ml') || 
+        /[\u0D00-\u0D7F]/.test(userText) ||
+        /\b(marunnu|adutha|enthaanu|enthaan|kazhicho|kazhinjo|eathaanu|ente|enre|aano|undo|kazhichu|eduthu|njan|athu)\b/i.test(userText);
+      const isTamilInput = !isMalayalamInput && (rawDetectedLang.startsWith('ta') || /[\u0B80-\u0BFF]/.test(userText));
+      const isHindiInput = !isMalayalamInput && !isTamilInput && (rawDetectedLang.startsWith('hi') || /[\u0900-\u097F]/.test(userText));
+
+      let activeLang = 'en';
+      if (data?.effective_language && ['en', 'ml', 'ta', 'hi', 'ar'].includes(data.effective_language.toLowerCase())) {
+        activeLang = data.effective_language.toLowerCase();
+      } else if (isMalayalamInput) {
+        activeLang = 'ml';
+      } else if (isTamilInput) {
+        activeLang = 'ta';
+      } else if (isHindiInput) {
+        activeLang = 'hi';
+      }
+
+      setConversationLang(activeLang);
+
       const effectiveVoiceLang = languageMode !== 'auto' 
         ? languageMode 
-        : detectScriptLanguage(userText, rawDetectedLang);
+        : (isMalayalamInput ? 'ml-IN' : isTamilInput ? 'ta-IN' : isHindiInput ? 'hi-IN' : detectScriptLanguage(userText, rawDetectedLang));
       
       const newMsg = {
         id: Date.now(),
@@ -413,12 +475,33 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       }
 
       const responseText = chatData?.response || "I'm here to help you.";
+      const respLang = (chatData?.language || '').toLowerCase();
+      let responseVoiceLang = 'en-IN';
+
+      if (respLang === 'ml' || /[\u0D00-\u0D7F]/.test(responseText)) {
+        responseVoiceLang = 'ml-IN';
+        setConversationLang('ml');
+      } else if (respLang === 'ta' || /[\u0B80-\u0BFF]/.test(responseText)) {
+        responseVoiceLang = 'ta-IN';
+        setConversationLang('ta');
+      } else if (respLang === 'hi' || /[\u0900-\u097F]/.test(responseText)) {
+        responseVoiceLang = 'hi-IN';
+        setConversationLang('hi');
+      } else if (respLang === 'en' || /^[A-Za-z0-9\s.,!?'"()-]+$/.test(responseText)) {
+        responseVoiceLang = 'en-IN';
+        setConversationLang('en');
+      } else {
+        responseVoiceLang = effectiveVoiceLang || 'en-IN';
+      }
+
+      // Safe development diagnostic log (no secrets or sensitive data logged)
+      console.log(`[VOICE TURN DIAGNOSTIC] ASR detected: ${rawDetectedLang} | normalized: ${activeLang} | effective voice: ${effectiveVoiceLang} | chat response lang: ${chatData?.language} | TTS lang: ${responseVoiceLang} | retry: ${Boolean(data?.retry_applied)}`);
       
       const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
         text: responseText,
-        langCode: effectiveVoiceLang,
+        langCode: responseVoiceLang,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       
@@ -428,7 +511,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       // 2. Decoupled TTS: Automatic turn handoff when speech ends
       try {
         tts.speak(responseText, {
-          langCode: effectiveVoiceLang,
+          langCode: responseVoiceLang,
           onStart: () => {
             if (!conversationModeRef.current || conversationSessionIdRef.current === currentSession) {
               setIsSpeaking(true);
@@ -499,9 +582,16 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
 
     setTurnState('thinking');
     try {
+      const isMalayalamInput = /[\u0D00-\u0D7F]/.test(text);
+      if (isMalayalamInput) {
+        setConversationLang('ml');
+      } else if (/^[A-Za-z0-9\s.,?!'"-]+$/.test(text)) {
+        setConversationLang('en');
+      }
+
       const effectiveVoiceLang = languageMode !== 'auto' 
         ? languageMode 
-        : detectScriptLanguage(text);
+        : (isMalayalamInput ? 'ml-IN' : detectScriptLanguage(text));
       
       const newMsg = {
         id: Date.now(),
@@ -519,12 +609,30 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       }
 
       const responseText = chatData?.response || "I'm here to help you.";
+      const respLang = (chatData?.language || '').toLowerCase();
+      let responseVoiceLang = 'en-IN';
+
+      if (respLang === 'ml' || /[\u0D00-\u0D7F]/.test(responseText)) {
+        responseVoiceLang = 'ml-IN';
+        setConversationLang('ml');
+      } else if (respLang === 'ta' || /[\u0B80-\u0BFF]/.test(responseText)) {
+        responseVoiceLang = 'ta-IN';
+        setConversationLang('ta');
+      } else if (respLang === 'hi' || /[\u0900-\u097F]/.test(responseText)) {
+        responseVoiceLang = 'hi-IN';
+        setConversationLang('hi');
+      } else if (respLang === 'en' || /^[A-Za-z0-9\s.,!?'"()-]+$/.test(responseText)) {
+        responseVoiceLang = 'en-IN';
+        setConversationLang('en');
+      } else {
+        responseVoiceLang = effectiveVoiceLang || 'en-IN';
+      }
 
       const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
         text: responseText,
-        langCode: effectiveVoiceLang,
+        langCode: responseVoiceLang,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       // Display text response first
@@ -533,7 +641,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
       // Decoupled TTS & Turn Loop
       try {
         tts.speak(responseText, {
-          langCode: effectiveVoiceLang,
+          langCode: responseVoiceLang,
           onStart: () => {
             if (!conversationModeRef.current || conversationSessionIdRef.current === currentSession) {
               setIsSpeaking(true);
@@ -633,7 +741,11 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
           isTranscribing={isTranscribing}
           isThinking={isThinking}
           handleStopRecording={handleStopRecording}
-          onClearConversation={() => setMessages([])}
+          onClearConversation={() => {
+            setMessages([]);
+            setConversationLang(languageMode !== 'auto' ? (languageMode.startsWith('ml') ? 'ml' : 'en') : 'en');
+            chatApi.resetSession();
+          }}
           handleAskAgain={handleAskAgain}
           timeContext={timeContext}
           isConversationMode={conversationMode}

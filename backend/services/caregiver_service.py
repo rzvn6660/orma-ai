@@ -3,6 +3,8 @@ from models.medicine import MedicineReminder
 import datetime
 from typing import Dict, Any
 
+from services.medicine_service import resolve_medication_daily_status
+
 def get_summary(db: Session, elder_ids: list[str] = None) -> Dict[str, Any]:
     today = datetime.datetime.utcnow().date()
     query = db.query(MedicineReminder)
@@ -11,9 +13,9 @@ def get_summary(db: Session, elder_ids: list[str] = None) -> Dict[str, Any]:
     all_meds = query.all()
     
     total = len(all_meds)
-    taken = sum(1 for m in all_meds if m.taken_status)
-    missed = sum(1 for m in all_meds if not m.taken_status and m.adherence_pattern_flags == 'missed')
-    pending = sum(1 for m in all_meds if not m.taken_status and m.adherence_pattern_flags != 'missed')
+    taken = sum(1 for m in all_meds if resolve_medication_daily_status(m))
+    missed = sum(1 for m in all_meds if not resolve_medication_daily_status(m) and m.adherence_pattern_flags == 'missed')
+    pending = sum(1 for m in all_meds if not resolve_medication_daily_status(m) and m.adherence_pattern_flags != 'missed')
     
     completion_rate = round((taken / total * 100) if total > 0 else 0)
     

@@ -4,6 +4,7 @@ from datetime import datetime
 from database import SessionLocal
 from models.medicine import MedicineReminder
 from models.health_event import HealthEvent
+from services.medicine_service import resolve_medication_daily_status
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -86,42 +87,43 @@ def process_event(db, item, item_type):
                     main_app_loop
                 )
     
-    # Escalation Check: If triggered more than 30 mins ago, still pending, and caregiver not yet notified
+    # Escalation Check: If triggered today, more than 30 mins ago, still pending, and caregiver not yet notified
     triggered_at = getattr(item, "reminder_triggered_at", None)
     is_notified = getattr(item, "is_caregiver_notified", False)
     
     if triggered_at and not is_notified:
         trig_utc = triggered_at if triggered_at.tzinfo else pytz.utc.localize(triggered_at)
-        time_diff = now_utc - trig_utc
-        
-        if time_diff.total_seconds() > 1800:
-            item.is_caregiver_notified = True
-            item.caregiver_notified_at = datetime.utcnow()
-            item.adherence_pattern_flags = "missed"
-            db.commit()
-            
-            logger.info(f"[CAREGIVER] Escalating missed reminder ID={item.id} (Type={item_type}) to caregiver")
-            from services.notification_manager import notification_manager
-            import asyncio
-            if main_app_loop and main_app_loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    notification_manager.escalate_missed_reminder(db, item),
-                    main_app_loop
-                )
+        # Only escalate if the reminder was actually triggered on today's occurrence
+        if trig_utc.astimezone(local_tz).date() == local_now.date():
+            time_diff = now_utc - trig_utc
+            if time_diff.total_seconds() > 1800:
+                item.is_caregiver_notified = True
+                item.caregiver_notified_at = datetime.utcnow()
+                item.adherence_pattern_flags = "missed"
+                db.commit()
+                
+                logger.info(f"[CAREGIVER] Escalating missed reminder ID={item.id} (Type={item_type}) to caregiver")
+                from services.notification_manager import notification_manager
+                import asyncio
+                if main_app_loop and main_app_loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        notification_manager.escalate_missed_reminder(db, item),
+                        main_app_loop
+                    )
 
 
 def check_all_reminders():
     """
     Checks the database every 15 seconds to see if any medicines or health events are scheduled for the current minute
-    based on the user's specific timezone.
+    based on the user's specific timezone. Date-scopes recurring medicines so new occurrences trigger each day.
     """
     db = SessionLocal()
     try:
-        # Check medicines
-        medicines = db.query(MedicineReminder).filter(
-            MedicineReminder.taken_status == False
-        ).all()
+        # Check medicines: query all reminders and process any that are NOT taken for today's occurrence
+        medicines = db.query(MedicineReminder).all()
         for med in medicines:
+            if resolve_medication_daily_status(med):
+                continue  # Already taken for today's occurrence
             process_event(db, med, "medicine")
             
         # Check health events

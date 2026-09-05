@@ -1,4 +1,5 @@
 import logging
+import re
 import httpx
 from typing import Tuple, Dict, Any
 
@@ -17,6 +18,15 @@ class IntentDetector:
         "MEDICATION_INFORMATION",
         "Medicine",
         "DOCUMENT_QUERY",
+        "ACKNOWLEDGMENT",
+        "THANKS",
+        "FAREWELL",
+        "REPEAT_REQUEST",
+        "CONVERSATION_RECALL",
+        "CORRECTION",
+        "FOLLOW_UP",
+        "REFERENCE_SELECTION",
+        "USER_IDENTITY",
         "GREETING",
         "GENERAL_CONVERSATION",
         "Appointment",
@@ -90,6 +100,7 @@ class IntentDetector:
             "You are an intent classification system for an elderly healthcare app.\n"
             "Classify the text into exactly ONE of these intents:\n"
             "MEDICATION_SCHEDULE, MEDICATION_STATUS, MEDICATION_SUMMARY, MEDICATION_INFORMATION, DOCUMENT_QUERY, "
+            "ACKNOWLEDGMENT, THANKS, FAREWELL, REPEAT_REQUEST, CONVERSATION_RECALL, CORRECTION, FOLLOW_UP, "
             "GREETING, GENERAL_CONVERSATION, Appointment, HealthRecord, Reminder, Memory, Caregiver, Emergency, Settings, Unknown\n\n"
             "Respond ONLY with the exact name of the intent, no extra text.\n\n"
             f"Text: \"{text}\"\nIntent:"
@@ -111,12 +122,152 @@ class IntentDetector:
 
     def _rule_based_detect(self, text: str) -> str:
         low = text.lower().strip()
+        clean = re.sub(r"[^\w\s\u0D00-\u0D7F]", "", low).strip()
 
-        # 1. Emergency (highest priority)
-        if any(w in low for w in ["help", "emergency", "pain", "fell", "fall", "hurt", "hospital", "ambulance", "caregiver", "wrong", "unwell", "sick", "chest", "breathing", "can't do", "cant do", "അടിയന്തിരം", "ஆபத்து"]):
+        # 1. Emergency (Acute danger signals only — preserve emergency safety logic while avoiding false alarms on casual 'unwell' or historical mentions)
+        is_emergency_inquiry = any(q in low for q in [
+            "tell me about emergency", "how does emergency", "what is emergency", 
+            "emergency support", "emergency feature", "emergency features", "information about emergency",
+            "emergency contact info", "emergency setup"
+        ])
+        is_historical = any(w in low for w in ["yesterday", "last week", "a few days ago", "earlier this week", "last month", "previously"])
+
+        acute_emergency_signals = [
+            "emergency", "ambulance", "hospital", "fell down", "i fell down", "can't get up", "cant get up",
+            "chest pain", "can't breathe", "cant breathe", "cannot breathe", "breathing difficulty",
+            "severe pain", "bleeding heavily", "unconscious", "help me", "help!", "save me",
+            "call caregiver", "call my caregiver", "call ambulance", "call an ambulance",
+            "അടിയന്തിരം", "ആപത്ത്", "രക്ഷിക്കൂ"
+        ]
+        
+        # Acute fall signal
+        has_acute_fall = ("fell" in low or "വീണു" in low) and not is_historical and any(w in low for w in ["down", "can't get up", "cant get up", "help", "floor", "now", "just now", "എഴുന്നേൽക്കാൻ"])
+        is_acute_signal = any(w in low for w in acute_emergency_signals) or clean == "help" or has_acute_fall
+
+        if is_acute_signal and not is_emergency_inquiry and not (is_historical and "fell" in low):
             return "Emergency"
 
-        # 2. Daily Adherence / Summary Queries
+        # 2. Pure Conversational Acknowledgments ("Okay", "Yeah", "Got it", "ശരി", "Right", "Fine")
+        question_words = ["what", "when", "how", "where", "which", "is", "did", "can", "could", "tell", "show", "schedule", "appointment", "എന്താണ്", "എപ്പോഴാണ്", "ഷെഡ്യൂൾ"]
+        medication_keywords = [
+            "medicine", "medicines", "medication", "medications", "pill", "pills", "tablet", "tablets", 
+            "syrup", "dose", "dosage", "adherence", "മരുന്ന്", "മരുന്നുകൾ"
+        ]
+        has_subsequent_question = any(qw in low for qw in question_words)
+        has_med_keyword = any(w in low for w in medication_keywords)
+
+        ack_words = {
+            "okay", "ok", "yeah", "yes", "alright", "fine", "got it", "understood",
+            "right", "yep", "yup", "hmm", "ah", "sure", "cool", "perfect", "good", "great",
+            "ശരി", "തീർച്ചയായും", "മനസ്സിലായി", "ശരിയാണ്", "അതെ", "ഓക്കെ", "ശരി ഓർമ", "ആ ശരി", "ശരി നന്ദി"
+        }
+        
+        # Check pure acknowledgment
+        is_ack_match = False
+        if not has_subsequent_question and not has_med_keyword:
+            if clean in ack_words:
+                is_ack_match = True
+            elif re.match(r"^(okay|ok|yeah|yes|alright|right|fine|got it|hmm|ah|ശരി|അതെ|ഓക്കെ)(\s+(then|dear|orma|thanks|okay|got\s+it|understood|ആ|ഓർമ|അത്\s+മനസ്സിലായി))*$", clean):
+                is_ack_match = True
+            elif clean in ["thats fine", "that's fine", "sounds good", "okay thanks", "ok thanks", "that is fine", "yeah okay", "ah okay", "hmm okay", "right okay", "okay got it", "ok got it"]:
+                is_ack_match = True
+
+        if is_ack_match:
+            return "ACKNOWLEDGMENT"
+
+        # 3. Thanks
+        thanks_phrases = [
+            "thanks", "thank you", "thanks a lot", "thank you very much", "thank you so much",
+            "many thanks", "thank you orma", "thanks orma", "thats helpful thanks", "that's helpful thanks",
+            "helpful thanks", "നന്ദി", "വളരെ നന്ദി", "നന്ദി ഓർമ"
+        ]
+        if (clean in thanks_phrases or any(clean.startswith(p + " ") or clean.endswith(" " + p) for p in ["thanks", "thank you", "നന്ദി"])) and not has_subsequent_question and not has_med_keyword:
+            return "THANKS"
+
+        # 4. Farewell
+        farewell_phrases = [
+            "bye", "goodbye", "see you", "good night", "bye orma", "goodbye orma",
+            "വിട", "ശുഭരാത്രി"
+        ]
+        if clean in farewell_phrases:
+            return "FAREWELL"
+
+        # 5. Repetition Request ("Can you tell me that again?", "Repeat that", "Say that again")
+        repeat_patterns = [
+            "repeat that", "can you repeat that", "could you repeat that", "can you repeat",
+            "can you tell me that again", "tell me that again", "say that again", "what did you say",
+            "tell me again", "repeat please", "could you say that again", "i didn't hear you", "didnt hear you",
+            "did not hear you", "one more time", "again please", "once more", "say again",
+            "can you repeat അത്",
+            "ഒന്നുകൂടി പറയാമോ", "ഒന്ന് കൂടി പറയാമോ", "ഒന്നുകൂടി പറയൂ", "എന്താണ് പറഞ്ഞത്", "വീണ്ടും പറയാമോ", "ഒരിക്കൽ കൂടി"
+        ]
+        if any(p in low for p in repeat_patterns) or clean in ["again", "again?"]:
+            return "REPEAT_REQUEST"
+
+        # 6. Conversation Recall ("What did I just tell you?", "What was I saying?")
+        recall_patterns = [
+            "what did i just tell you", "what did i tell you", "what did i just say", "what did i say",
+            "what was i saying", "what did i tell you just now", "do you remember what i said",
+            "ഞാൻ എന്താണ് പറഞ്ഞത്", "ഞാൻ ഇപ്പോൾ എന്താണ് പറഞ്ഞത്", "ഞാൻ പറഞ്ഞത് ഓർക്കുന്നുണ്ടോ"
+        ]
+        if any(p in low for p in recall_patterns):
+            return "CONVERSATION_RECALL"
+
+        # 7. Correction ("No, I meant the morning one", "Sorry, the morning medicine")
+        correction_patterns = [
+            "no i meant", "no, i meant", "i meant the", "no the morning", "no, the morning",
+            "no the evening", "no, the evening", "not that one", "no sorry i meant", "sorry, the morning", "sorry the morning",
+            "i was asking about the other one", "i meant the first one", "actually no, i meant",
+            "അല്ല, രാവിലെ", "അതല്ല ഞാൻ ഉദ്ദേശിച്ചത്", "അതല്ല, ഞാൻ ഉദ്ദേശിച്ചത്", "അതല്ല", "അല്ല രാവിലെ", "രാവിലെ ഉള്ള മരുന്നാണ് ഞാൻ ചോദിച്ചത്"
+        ]
+        if any(p in low for p in correction_patterns):
+            return "CORRECTION"
+
+        # 8. User Identity ("What is my name?")
+        identity_patterns = [
+            "what is my name", "what's my name", "who am i", "do you know my name", "tell me my name",
+            "എന്റെ പേര്"
+        ]
+        if any(p in low for p in identity_patterns):
+            return "USER_IDENTITY"
+
+        # 9. Follow-Up / Reference Queries ("What about tomorrow?", "When should I take it?")
+        followup_patterns = [
+            "what about tomorrow", "and tomorrow", "tomorrow?", "what do i have tomorrow", "how about tomorrow",
+            "what about the next day", "and the day after", "what happens tomorrow", "tomorrow then",
+            "what about the one tomorrow", "what about the second one", "what about the first one",
+            "what about the morning one", "what about the evening one", "what about tonight",
+            "and the evening one", "and that one", "that medicine, when", "that medicine", "and that",
+            "when do i take it", "when should i take it", "what time do i take it", "when am i supposed to take it",
+            "when do i have to take that", "what time is that", "when is that",
+            "that one", "the second one", "the first one", "the other one",
+            "tomorrow എന്താണ്", "that medicine എപ്പോഴാ", "morning medicine ഏതാണ്", "ശരി, what about tomorrow",
+            "നാളെയോ", "നാളെ എന്താണ്", "രണ്ടാമത്തേതോ", "ആദ്യത്തേതോ", "അത് എപ്പോഴാണ്", "ആ മരുന്ന് എപ്പോഴാണ്", "അത് എപ്പോഴാണ് കഴിക്കേണ്ടത്"
+        ]
+        if any(p in low for p in followup_patterns) or clean in ["tomorrow", "tomorrow?"]:
+            return "FOLLOW_UP"
+            return "FOLLOW_UP"
+
+        # 10. Explicit Memory Request ("Remember that I prefer Malayalam")
+        explicit_mem_patterns = [
+            "remember that", "please remember that", "keep in mind that", "note that", "note down that",
+            "remember my", "make a note that", "save this to memory",
+            "ഇത് ഓർത്തു വെക്കണം", "ഓർമ്മയിൽ വെക്കണം", "ഓർത്തു വെക്കൂ"
+        ]
+        if any(p in low for p in explicit_mem_patterns):
+            return "Memory"
+
+        # 11. Memory Query ("What language do I prefer?")
+        mem_query_patterns = [
+            "what language do i prefer", "what language do i speak", "what is my preferred language",
+            "what is my favorite", "what do you remember about me", "do you remember",
+            "remind me about the thing", "preferred reminder language", "preferred language",
+            "my preference", "എന്റെ ഭാഷ", "എനിക്ക് ഇഷ്ടപ്പെട്ട"
+        ]
+        if any(p in low for p in mem_query_patterns):
+            return "Memory"
+
+        # 12. Daily Adherence / Summary Queries
         summary_patterns = [
             "how did i do", "how did i do today", "how was my medication", "how am i doing with my medicines", 
             "how am i doing today", "how am i doing lately", "tell me what happened with my health today",
@@ -126,26 +277,35 @@ class IntentDetector:
         if any(p in low for p in summary_patterns):
             return "MEDICATION_SUMMARY"
 
-        # 3. Anaphoric / Coreference Follow-Ups
+        # 13. Anaphoric / Coreference Status Queries
         if any(p in low for p in [
             "did i take it", "did i take them", "is it taken", "have i taken them", "did i already take what i need",
             "anything i forgot", "think i missed something", "is anything left", "what's left"
         ]):
             return "MEDICATION_STATUS"
 
-        # 4. Schedule & Open-Ended Medication Query Patterns (Authoritative SQLite DB path)
+        # 14. Schedule & Open-Ended Medication Query Patterns
+        has_med_word = any(w in low for w in ["medicine", "medicines", "medication", "medications", "pill", "pills", "tablet", "tablets", "dose", "മരുന്ന്", "ദവാ", "दवा"])
+        has_sched_query = any(w in low for w in [
+            "morning", "afternoon", "evening", "night", "tonight", "today", "tomorrow", 
+            "next", "upcoming", "schedule", "time", "when", "what", "which", "need", "want", "take",
+            "ഏതാണ്", "എപ്പോഴാണ്", "വേണം"
+        ])
+
         schedule_patterns = [
             "what time", "when is", "when are", "when should", "what are my", "which medicines", "which are my", "schedule", "time of",
             "what should i take", "what's scheduled", "anything to take", "what do i need to do before bed", "what do i need to take", "what do i have",
             "what's left on my medicine", "left on my medicine", "finished with my tablets", "finished with my medicine",
             "done with everything", "anything coming up", "another tablet", "before sleeping", "waiting for me",
             "what medicine do i take tonight", "what medicine do i take", "next medicine", "next dose",
+            "morning medicine", "evening medicine", "night medicine", "what is my",
+            "need my medicine", "need medicine", "want my medicine", "have to take my medicine",
             "എന്റെ മരുന്നുകൾ", "കഴിക്കേണ്ട മരുന്നുകൾ", "कब है", "किस समय", "कौन सी", "متى", "أي وقت"
         ]
-        if any(p in low for p in schedule_patterns):
+        if (has_med_word and has_sched_query) or any(p in low for p in schedule_patterns):
             return "MEDICATION_SCHEDULE"
 
-        # 5. Status Queries ("Did I take...", "Have I taken...", "Are all my night medicines taken?", "What do I still need?")
+        # 15. Status Queries ("Did I take...", "Have I taken...", "Are all my night medicines taken?")
         status_patterns = [
             "did i take", "have i taken", "are all my", "is my medicine", "is my dose", "is my pill", "is my tablet", "already taken", "pending", "left", "remaining",
             "still need", "need to take", "have to take", "something to take", "still have", "what do i need", "what do i have", "finished with my", "done with my",
@@ -156,7 +316,7 @@ class IntentDetector:
         if any(p in low for p in status_patterns) or "taken" in low or "pending" in low:
             return "MEDICATION_STATUS"
 
-        # 6. RAG Document Queries (Discharge summaries, doctor notes, medical reports, prescriptions, diet recommendations, uploaded care guides)
+        # 16. RAG Document Queries
         rag_patterns = [
             "discharge summary", "discharge note", "medical report", "doctor's note", "doctor notes", "doctor note",
             "doctor say about", "doctor said about", "doctor recommend about", "doctor told me about",
@@ -179,28 +339,22 @@ class IntentDetector:
         if any(p in low for p in rag_patterns):
             return "DOCUMENT_QUERY"
 
-        # 7. Information Queries ("What is Paracetamol for?", "Side effects of...")
+        # 17. Information Queries
         info_patterns = ["for what", "side effect", "side-effect", "use of", "purpose of", "ഉദ്ദേശ്യം", "उपयोग"]
         if any(p in low for p in info_patterns):
             return "MEDICATION_INFORMATION"
 
-        # 8. Calendar / Planning Intents ("plan tomorrow", "visit my daughter", "appointment", "doctor")
+        # 18. Calendar / Planning Intents
         if any(w in low for w in ["plan tomorrow", "appointment", "doctor", "visit", "clinic", "checkup"]):
             return "Appointment"
 
-        # 9. Memory Intents
-        if any(w in low for w in [
-            "remind me about the thing", "yesterday", "remember", "forgot", "where is", 
-            "what did i tell you", "what do you remember", "daughter", "son", "family", 
-            "name is", "what is my daughter", "preferred reminder language", "preferred language",
-            "what language", "what do i prefer", "my preference", "keep in mind", "note that", "save to memory"
-        ]):
-            return "Memory"
-
-        # 10. Pure Greetings & General Conversation
+        # 19. General Greetings & Health Inquiries
         greeting_phrases = [
-            "hi", "hello", "hey", "how are you", "how do we do", "good morning", "good afternoon", "good evening", "good night",
-            "how are you doing", "how do you do", "nice to meet you", "നമസ്കാരം", "സുപ്രഭാതം", "नमस्ते", "صباح الخير", "مساء الخير"
+            "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "good day",
+            "how are you", "how are you doing", "how do you do", "nice to meet you",
+            "hello orma", "hi orma", "hey orma", "orma", "are you there", "hi dear", "hello dear",
+            "നമസ്കാരം", "സുപ്രഭാതം", "ഹലോ", "ഹായ്", "സുഖമാണോ", "സുഖമാണോ ഓർമ", "ഹലോ ഓർമ", "നമസ്കാരം ഓർമ",
+            "എങ്ങനെയുണ്ട്", "नमस्ते", "صباح الخير", "مساء الخير"
         ]
         
         medication_keywords = [
@@ -210,15 +364,11 @@ class IntentDetector:
         has_med_keyword = any(w in low for w in medication_keywords)
 
         if not has_med_keyword:
-            if any(low == phrase or low.startswith(phrase + " ") or low.startswith(phrase + ".") or low.startswith(phrase + ",") for phrase in greeting_phrases):
+            if clean in greeting_phrases or any(clean == phrase or clean.startswith(phrase + " ") or clean.startswith(phrase + ",") for phrase in greeting_phrases):
                 return "GREETING"
-            if any(w in low for w in ["how are you", "how do we do", "how are things", "who are you", "what is your name", "tired", "feel tired", "feel like talking", "difficult day", "focus today", "on your mind"]):
+            if any(w in low for w in ["how are things", "who are you", "what is your name", "tired", "feel tired", "feel like talking", "difficult day", "focus today", "on your mind", "i don't feel well", "not feeling well", "feeling unwell"]):
                 return "GENERAL_CONVERSATION"
 
-        # Default fallback
-        if not has_med_keyword and len(low.split()) <= 4:
-            return "GREETING"
-            
         return "GENERAL_CONVERSATION"
 
 intent_detector = IntentDetector()

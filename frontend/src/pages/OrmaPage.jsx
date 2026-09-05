@@ -18,7 +18,6 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import AIConversationPanel from '../components/AIConversationPanel';
-import FloatingTalkControl from '../components/voice/FloatingTalkControl';
 import ConversationsPage from './ConversationsPage';
 import MemoryPage from './MemoryPage';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -117,57 +116,54 @@ export default function OrmaPage({
     <ErrorBoundary>
       <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 pb-12">
         
-        {/* 1. Compact Header Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/70 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-white/10 shadow-lg">
-          <div className="flex items-center gap-3 sm:gap-3.5">
+        {/* 1. Compact Header Navigation Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/50 backdrop-blur-xl px-4 py-3 rounded-2xl border border-white/10 shadow-md">
+          <div className="flex items-center gap-3">
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
                 aria-label="Back to Dashboard"
-                className="p-2.5 sm:px-3.5 sm:py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-white/10 flex items-center gap-2 text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer shrink-0"
+                className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-white/10 flex items-center gap-1.5 text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0"
               >
-                <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                <ArrowLeft className="w-4 h-4" />
                 <span className="hidden sm:inline">Back</span>
               </button>
             )}
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-md shrink-0">
-              <Brain className="w-5 h-5 sm:w-6 sm:h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-lg sm:text-2xl font-extrabold text-white tracking-tight">
-                  ORMA AI Companion
-                </h1>
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-950/70 border border-white/10 ${status.textColor}`}>
-                  <span className={`w-2 h-2 rounded-full ${status.color}`} />
-                  {status.label}
-                </span>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-md shrink-0">
+                <Brain className="w-4 h-4" />
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Your personal voice-first healthcare companion
-              </p>
+              <div>
+                <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight leading-tight">
+                  Voice Companion
+                </h1>
+              </div>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-950/70 border border-white/10 ${status.textColor}`}>
+                <span className={`w-2 h-2 rounded-full ${status.color}`} />
+                {status.label}
+              </span>
             </div>
           </div>
 
           {/* Navigation Mode Switcher */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-950/70 border border-white/10 rounded-2xl shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-slate-950/70 border border-white/10 rounded-xl shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('assistant')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                 activeTab === 'assistant'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Mic className="w-3.5 h-3.5" />
-              <span>Live Companion</span>
+              <span>Voice</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                 activeTab === 'history'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -179,7 +175,7 @@ export default function OrmaPage({
             <button
               type="button"
               onClick={() => setActiveTab('memory')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                 activeTab === 'memory'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -203,29 +199,27 @@ export default function OrmaPage({
             {activeTab === 'assistant' && (
               <div className="space-y-6">
                 {/* Voice-First Central Companion Surface */}
-                <div className="orma-card p-6 sm:p-8">
-                  <AIConversationPanel
-                    user={user}
-                    isListening={isListening}
-                    isSpeaking={isSpeaking}
-                    onStopSpeaking={onStopSpeaking}
-                    messages={messages}
-                    isTranscribing={isTranscribing}
-                    isThinking={isThinking}
-                    startRecording={() => {}}
-                    stopRecording={handleStopRecording}
-                    onClearConversation={onClearConversation}
-                    onAskAgain={handleAskAgain}
-                    timeContext={timeContext}
-                    isConversationMode={isConversationMode}
-                    turnState={turnState}
-                    onStartConversation={onStartConversation}
-                    onEndConversation={onEndConversation}
-                    onInterrupt={onInterrupt}
-                    listenTrigger={listenTrigger}
-                    onStatusChange={onStatusChange}
-                  />
-                </div>
+                <AIConversationPanel
+                  user={user}
+                  isListening={isListening}
+                  isSpeaking={isSpeaking}
+                  onStopSpeaking={onStopSpeaking}
+                  messages={messages}
+                  isTranscribing={isTranscribing}
+                  isThinking={isThinking}
+                  startRecording={() => {}}
+                  stopRecording={handleStopRecording}
+                  onClearConversation={onClearConversation}
+                  onAskAgain={handleAskAgain}
+                  timeContext={timeContext}
+                  isConversationMode={isConversationMode}
+                  turnState={turnState}
+                  onStartConversation={onStartConversation}
+                  onEndConversation={onEndConversation}
+                  onInterrupt={onInterrupt}
+                  listenTrigger={listenTrigger}
+                  onStatusChange={onStatusChange}
+                />
 
                 {/* 3. Today's Context — 3 Balanced Summary Cards */}
                 <div className="space-y-3">
@@ -370,18 +364,6 @@ export default function OrmaPage({
             )}
           </motion.div>
         </AnimatePresence>
-
-        {/* Persistent Floating Talk Control (Visible while scrolling) */}
-        <FloatingTalkControl
-          isConversationMode={isConversationMode}
-          turnState={turnState}
-          isListening={isListening}
-          isProcessing={Boolean(isTranscribing || isThinking)}
-          isSpeaking={isSpeaking}
-          onStartConversation={onStartConversation}
-          onEndConversation={onEndConversation}
-          onInterrupt={onInterrupt}
-        />
 
       </div>
     </ErrorBoundary>

@@ -4,6 +4,11 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { Bell, Check, AlertTriangle, AlertOctagon, Heart, Pill } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatEmergencyTimestamp } from '../utils/timeUtils';
+import { 
+  syncReadNotifications, 
+  reconcileWithReadStorage, 
+  markNotificationReadInStorage 
+} from '../utils/notificationStorage';
 
 export default function NotificationCenter({ user, onViewChange }) {
   const [notifications, setNotifications] = useState([]);
@@ -13,8 +18,13 @@ export default function NotificationCenter({ user, onViewChange }) {
   const fetchNotifications = useCallback(async () => {
     try {
       const data = await notificationApi.getNotifications();
-      setNotifications(data || []);
-      setUnreadCount((data || []).filter(n => !n.is_read).length);
+      const uniqueNotifications = Array.isArray(data) 
+        ? Array.from(new Map(data.map(item => [item.id, item])).values()) 
+        : [];
+      syncReadNotifications(uniqueNotifications);
+      const reconciled = reconcileWithReadStorage(uniqueNotifications);
+      setNotifications(reconciled);
+      setUnreadCount(reconciled.filter(n => !n.is_read).length);
     } catch (err) {
       console.error(err);
     }
@@ -22,15 +32,24 @@ export default function NotificationCenter({ user, onViewChange }) {
 
   useEffect(() => {
     if (user) fetchNotifications();
+    const handleUpdate = () => fetchNotifications();
+    window.addEventListener('orma:remindersUpdated', handleUpdate);
+    window.addEventListener('orma:notification', handleUpdate);
+    return () => {
+      window.removeEventListener('orma:remindersUpdated', handleUpdate);
+      window.removeEventListener('orma:notification', handleUpdate);
+    };
   }, [user, fetchNotifications]);
 
   // Handle incoming real-time notifications
   const handleNewNotification = useCallback((data) => {
-    if (data.type === 'notification') {
-      fetchNotifications();
-    } else if (data.type === 'emergency_alert') {
-      fetchNotifications();
-    } else if (data.type === 'emergency_acknowledged' || data.type === 'emergency_resolved') {
+    if (
+      data.type === 'notification' || 
+      data.type === 'medicine_missed' ||
+      data.type === 'emergency_alert' || 
+      data.type === 'emergency_acknowledged' || 
+      data.type === 'emergency_resolved'
+    ) {
       fetchNotifications();
     }
   }, [fetchNotifications]);
@@ -40,9 +59,22 @@ export default function NotificationCenter({ user, onViewChange }) {
   const handleMarkRead = async (id, e) => {
     e?.stopPropagation();
     try {
+      markNotificationReadInStorage(id);
       await notificationApi.markRead(id);
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadList = notifications.filter(n => !n.is_read);
+      unreadList.forEach(n => markNotificationReadInStorage(n.id));
+      await Promise.allSettled(unreadList.map(n => notificationApi.markRead(n.id)));
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
     } catch (err) {
       console.error(err);
     }
@@ -136,7 +168,18 @@ export default function NotificationCenter({ user, onViewChange }) {
           >
             <div className="p-3 border-b border-white/10 mb-2 flex justify-between items-center sticky top-0 bg-slate-950/80 backdrop-blur-md z-10 rounded-xl">
               <h3 className="text-white font-bold text-sm">Alerts & Notifications</h3>
-              <span className="text-xs text-slate-400 font-semibold">{unreadCount} unread</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold">{unreadCount} unread</span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold hover:underline cursor-pointer"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -166,15 +209,25 @@ export default function NotificationCenter({ user, onViewChange }) {
                         <h4 className={`text-sm ${!n.is_read ? 'text-white font-bold' : 'text-slate-300 font-medium'}`}>{n.title}</h4>
                         <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
                       </div>
-                      {!n.is_read && (
+                      {!n.is_read ? (
                         <button 
                           type="button"
                           onClick={(e) => handleMarkRead(n.id, e)} 
-                          className="shrink-0 p-1 hover:bg-slate-700 rounded-full h-fit text-blue-400 cursor-pointer self-center"
+                          className="shrink-0 px-2 py-1 bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 hover:text-blue-200 border border-blue-500/30 rounded-lg text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors self-center"
                           title="Mark as read"
+                          aria-label={`Mark notification ${n.title} as read`}
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="w-3 h-3 text-blue-400" />
+                          <span>Mark as read</span>
                         </button>
+                      ) : (
+                        <span 
+                          className="shrink-0 px-1.5 py-0.5 text-slate-500 text-[10px] font-medium flex items-center gap-1 self-center" 
+                          title="Read"
+                        >
+                          <Check className="w-3 h-3 text-slate-500" />
+                          <span>Read</span>
+                        </span>
                       )}
                     </div>
                   );

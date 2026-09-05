@@ -9,7 +9,9 @@ import {
   RotateCcw,
   VolumeX,
   Send,
-  PhoneOff
+  PhoneOff,
+  Mic,
+  Square
 } from 'lucide-react';
 import { tts } from '../services/tts';
 import AICompanionOrb from './AICompanionOrb';
@@ -39,13 +41,14 @@ export default function AIConversationPanel({
 }) {
   const [replayingMessageId, setReplayingMessageId] = useState(null);
   const [typedText, setTypedText] = useState('');
-  const messagesEndRef = useRef(null);
+  const feedRef = useRef(null);
 
   const handleReplay = (msgId, text, langCode) => {
     if (!text) return;
+    const detected = /[\u0D00-\u0D7F]/.test(text) ? 'ml-IN' : (langCode || 'en-IN');
     setReplayingMessageId(msgId);
     tts.speak(text, {
-      langCode: langCode || 'en-IN',
+      langCode: detected,
       onEnd: () => setReplayingMessageId(null),
       onError: () => setReplayingMessageId(null)
     });
@@ -68,10 +71,13 @@ export default function AIConversationPanel({
 
   const safeMessages = Array.isArray(messages) ? messages.filter(Boolean) : [];
 
-  // Smoothly scroll conversation area to latest message when new messages arrive
+  // Smoothly scroll message container only (prevents outer page/orb from scrolling)
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (feedRef.current) {
+      feedRef.current.scrollTo({
+        top: feedRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [safeMessages.length, isThinking, isTranscribing]);
 
@@ -92,7 +98,7 @@ export default function AIConversationPanel({
     : defaultSuggestions;
 
   return (
-    <div className="flex flex-col items-center justify-start relative w-full max-w-3xl mx-auto">
+    <div className="flex flex-col items-center justify-start relative w-full max-w-2xl mx-auto">
 
       {/* 0. Continuous Conversation Mode Active Status Banner */}
       <AnimatePresence>
@@ -185,7 +191,7 @@ export default function AIConversationPanel({
       </div>
 
       {/* 2. Chronological Dialogue & Scrollable Conversation Area */}
-      <div className="w-full orma-card p-4 sm:p-6 mb-6 border border-white/10 shadow-2xl relative flex flex-col overflow-hidden">
+      <div className="w-full rounded-3xl bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-4 sm:p-5 mb-5 shadow-2xl relative flex flex-col overflow-hidden">
         {/* Top Cyan Accent Line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 opacity-80" />
 
@@ -216,7 +222,7 @@ export default function AIConversationPanel({
         </div>
 
         {/* Scrollable Message Feed */}
-        <div className="w-full max-h-[380px] sm:max-h-[460px] overflow-y-auto overscroll-contain custom-scrollbar space-y-3.5 pr-1 sm:pr-2">
+        <div ref={feedRef} className="w-full max-h-[320px] sm:max-h-[380px] overflow-y-auto overscroll-contain custom-scrollbar space-y-3 pr-1 sm:pr-2">
           {safeMessages.length === 0 ? (
             <div className="py-8 px-4 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
               <Sparkles className="w-7 h-7 text-cyan-400/60 mb-1" />
@@ -309,8 +315,6 @@ export default function AIConversationPanel({
             </div>
           )}
 
-          {/* Auto-scroll bottom anchor */}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Typing Input Bar (Preserve typing interaction alongside voice) */}
@@ -329,6 +333,33 @@ export default function AIConversationPanel({
             disabled={Boolean(isTranscribing || isThinking)}
             className="flex-1 px-4 py-2.5 rounded-xl bg-slate-950/80 border border-white/15 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/30 transition-all disabled:opacity-50"
           />
+          {/* Bottom Action Area Voice Button */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('orma_toggle_voice'))}
+            disabled={Boolean(isTranscribing || isThinking || turnState === 'thinking')}
+            aria-label={isListening || turnState === 'listening' ? "Stop listening" : isSpeaking || turnState === 'speaking' ? "Interrupt ORMA" : "Speak to ORMA"}
+            title={isListening || turnState === 'listening' ? "Tap to finish speaking" : isSpeaking || turnState === 'speaking' ? "Tap to interrupt" : "Tap to speak"}
+            className={`p-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center transition-all shadow-md cursor-pointer shrink-0 active:scale-95 border ${
+              isListening || turnState === 'listening'
+                ? 'bg-cyan-500/25 hover:bg-cyan-500/35 border-cyan-400 text-cyan-200 animate-pulse'
+                : isSpeaking || turnState === 'speaking'
+                ? 'bg-sky-500/20 hover:bg-sky-500/30 border-sky-400/50 text-sky-300'
+                : isTranscribing || isThinking || turnState === 'thinking'
+                ? 'bg-slate-800 border-white/10 text-slate-500 cursor-not-allowed opacity-50'
+                : 'bg-slate-800 hover:bg-slate-700 border-white/15 text-cyan-400 hover:text-cyan-300'
+            }`}
+          >
+            {isListening || turnState === 'listening' ? (
+              <Square className="w-4 h-4 fill-current text-cyan-300" />
+            ) : isSpeaking || turnState === 'speaking' ? (
+              <VolumeX className="w-4 h-4 text-sky-300" />
+            ) : isTranscribing || isThinking || turnState === 'thinking' ? (
+              <div className="w-4 h-4 rounded-full border-2 border-slate-400 border-t-transparent animate-spin" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
+          </button>
           <button
             type="button"
             onClick={handleSendTyped}
@@ -366,6 +397,116 @@ export default function AIConversationPanel({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 4. Calm Persistent Voice Control (Accessible when scrolled; does not overlap composer or mobile nav) */}
+      <div className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-30 pointer-events-auto">
+        {!isConversationMode ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartConversation) onStartConversation();
+              else window.dispatchEvent(new CustomEvent('orma_toggle_voice'));
+            }}
+            disabled={Boolean(isTranscribing || isThinking || turnState === 'thinking')}
+            aria-label={
+              isListening || turnState === 'listening' 
+                ? "Listening · Tap to Stop" 
+                : isSpeaking || turnState === 'speaking' 
+                ? "Tap to Interrupt" 
+                : "Tap to Speak"
+            }
+            className={`flex items-center gap-2.5 px-4 py-3 rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.6)] backdrop-blur-2xl border transition-all cursor-pointer select-none active:scale-95 ${
+              isListening || turnState === 'listening'
+                ? 'bg-slate-950/95 border-cyan-400 text-cyan-200 ring-2 ring-cyan-400/40'
+                : isSpeaking || turnState === 'speaking'
+                ? 'bg-slate-950/95 border-sky-400/70 text-sky-200 ring-2 ring-sky-400/30'
+                : isTranscribing || isThinking || turnState === 'thinking'
+                ? 'bg-slate-950/90 border-slate-700 text-slate-400 cursor-not-allowed opacity-75'
+                : 'bg-slate-900/90 hover:bg-slate-800/95 border-cyan-500/40 hover:border-cyan-400 text-slate-100 hover:text-white ring-1 ring-white/10'
+            }`}
+          >
+            {isListening || turnState === 'listening' ? (
+              <>
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500" />
+                </span>
+                <span className="text-xs sm:text-sm font-extrabold text-cyan-300">Listening · Tap to Stop</span>
+              </>
+            ) : isSpeaking || turnState === 'speaking' ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+                <span className="text-xs sm:text-sm font-extrabold text-sky-200">Tap to Interrupt</span>
+              </>
+            ) : isTranscribing || isThinking || turnState === 'thinking' ? (
+              <>
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin" />
+                <span className="text-xs sm:text-sm font-bold text-slate-300">Thinking...</span>
+              </>
+            ) : (
+              <>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-sm">
+                  <Mic className="w-3 h-3" />
+                </div>
+                <span className="text-xs sm:text-sm font-extrabold text-slate-200">Tap to Speak</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 p-1.5 sm:p-2 pl-3 sm:pl-3.5 rounded-full bg-slate-950/95 border-2 border-cyan-400/50 shadow-[0_10px_30px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
+            {/* Active Turn Status / Interrupt */}
+            {isListening || turnState === 'listening' ? (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('orma_toggle_voice'))}
+                className="flex items-center gap-2 cursor-pointer pr-2 select-none"
+                aria-label="Listening · Tap to Stop"
+              >
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500" />
+                </span>
+                <span className="text-xs sm:text-sm font-extrabold text-cyan-300">
+                  Listening · Tap to Stop
+                </span>
+              </button>
+            ) : isSpeaking || turnState === 'speaking' ? (
+              <button
+                type="button"
+                onClick={onInterrupt || onStopSpeaking}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-sky-200 text-xs sm:text-sm font-bold transition-all cursor-pointer select-none"
+                aria-label="Tap to Interrupt"
+              >
+                <VolumeX className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+                <span>Tap to Interrupt</span>
+              </button>
+            ) : isTranscribing || isThinking || turnState === 'thinking' ? (
+              <div className="flex items-center gap-2 pr-2">
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                <span className="text-xs sm:text-sm font-bold text-slate-300">Thinking...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 pr-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-xs sm:text-sm font-bold text-emerald-300">Your Turn</span>
+              </div>
+            )}
+
+            {/* Stop Conversation Action */}
+            {onEndConversation && (
+              <button
+                type="button"
+                onClick={onEndConversation}
+                className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full bg-red-500/20 hover:bg-red-500/35 border border-red-500/40 text-red-300 hover:text-white text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm active:scale-95 select-none"
+                aria-label="Stop Conversation"
+              >
+                <PhoneOff className="w-3.5 h-3.5 shrink-0" />
+                <span>Stop Conversation</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
     </div>

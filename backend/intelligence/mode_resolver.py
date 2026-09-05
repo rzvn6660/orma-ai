@@ -29,7 +29,15 @@ class ModeResolver:
         low = text.lower().strip()
 
         # 1. SAFETY_DETERMINISTIC: Emergency, SOS, Pain, Caregiver Call, Medication Mutation
-        if intent == "Emergency" or any(w in low for w in ["call my caregiver", "call caregiver", "ambulance", "hospital", "fell and", "i fell"]):
+        is_historical = any(w in low for w in ["yesterday", "last week", "a few days ago", "earlier this week", "last month", "previously", "past"])
+        is_emergency_inquiry = any(q in low for q in [
+            "tell me about emergency", "how does emergency", "what is emergency", 
+            "emergency support", "emergency feature", "emergency features", "information about emergency",
+            "emergency contact info", "emergency setup"
+        ])
+        is_acute_emergency_keyword = any(w in low for w in ["call my caregiver", "call caregiver", "ambulance", "hospital", "fell and"]) or (("i fell" in low or "fell down" in low) and not is_historical)
+
+        if (intent == "Emergency" or is_acute_emergency_keyword) and not is_emergency_inquiry and not (is_historical and "fell" in low):
             return {
                 "mode": ExecutionMode.SAFETY_DETERMINISTIC,
                 "llm_required": False,
@@ -41,9 +49,10 @@ class ModeResolver:
         # 2. TOOL_ONLY: Authoritative direct lookup queries (e.g. "What is my next medicine?", "What medicine do I take tonight?")
         has_schedule_word = any(w in low for w in ["next", "upcoming", "tonight", "today", "morning", "afternoon", "evening", "night", "now", "അടുത്ത", "अगली", "التالي"])
         has_med_word = any(w in low for w in ["medicine", "medicines", "dose", "tablet", "tablets", "scheduled", "മരുന്ന്", "ദവാ", "दवा"])
-        is_simple_next_med = has_next_med_query or (has_schedule_word and has_med_word and any(q in low for q in ["what", "which", "when", "next"])) or any(p in low for p in [
+        is_simple_next_med = has_next_med_query or (has_schedule_word and has_med_word and any(q in low for q in ["what", "which", "when", "next", "ഏതാണ്", "എപ്പോഴാണ്", "എന്താണ്", "ഏതാ"])) or any(p in low for p in [
             "what medicine do i take", "what medicines do i take", "what medicine do i take tonight", "what medicine do i take today",
-            "what is my next medicine", "what's my next medicine", "next medicine", "what is next", "next dose"
+            "what is my next medicine", "what's my next medicine", "next medicine", "what is next", "next dose",
+            "അടുത്ത മരുന്ന്", "എന്റെ അടുത്ത മരുന്ന്", "അടുത്ത മരുന്ന് ഏതാണ്"
         ])
         if is_simple_next_med:
             return {
@@ -55,6 +64,15 @@ class ModeResolver:
             }
 
         # 3. DIRECT: Simple direct deterministic responses requiring neither LLM nor database
+        if intent in ["ACKNOWLEDGMENT", "THANKS", "FAREWELL", "REPEAT_REQUEST", "CONVERSATION_RECALL", "USER_IDENTITY"]:
+            return {
+                "mode": ExecutionMode.DIRECT,
+                "llm_required": False,
+                "tool_required": False,
+                "tool": "none",
+                "reason": f"Direct deterministic response for conversational intent '{intent}'."
+            }
+
         if low in ["hello", "hi", "hey"] and len(low.split()) == 1 and not llm_available:
             return {
                 "mode": ExecutionMode.DIRECT,

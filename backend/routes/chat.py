@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+    language: Optional[str] = "en"
 
 @router.post("", response_model=ChatResponse)
 @router.post("/", response_model=ChatResponse)
@@ -44,18 +45,45 @@ async def send_message(request_payload: ChatRequest, request: Request, db: Sessi
                     if isinstance(h_item, dict) and "role" in h_item and "content" in h_item:
                         conversation_manager.add_message(user_id, h_item["role"], h_item["content"])
 
-        reply = await orchestrator.process_request(
+        raw_pref = request_payload.language_preference
+        raw_det = request_payload.detected_language
+        lang_cand = raw_pref if raw_pref != "auto" else raw_det
+        from services.transcription_service import normalize_language_code
+        lang_to_use = normalize_language_code(lang_cand) or "en"
+
+        import logging
+        chat_logger = logging.getLogger(__name__)
+        chat_logger.info(
+            f"[CHAT DIAGNOSTIC] preference='{raw_pref}' | "
+            f"detected='{raw_det}' | "
+            f"effective_lang='{lang_to_use}' | "
+            f"msg_preview='{request_payload.message[:40]}'"
+        )
+
+        detailed = await orchestrator.process_request_detailed(
             text=request_payload.message,
             user_id=user_id,
             db=db,
-            language=request_payload.language_preference if request_payload.language_preference != "auto" else request_payload.detected_language,
+            language=lang_to_use,
             active_subject_id=active_subject_id
         )
-        return ChatResponse(response=reply)
+        return ChatResponse(
+            response=detailed["response"],
+            language=detailed.get("language", "en")
+        )
     except HTTPException:
         raise
     except Exception as e:
         import traceback
         print(f"[CHAT ERROR] send_message failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+
+@router.post("/reset")
+@router.post("/clear")
+async def reset_conversation(request: Request, ctx: dict = Depends(get_current_context)):
+    """Resets conversational short-term context and history for the active session."""
+    actor = ctx.get('authenticated_user')
+    user_id = str(actor.id) if actor else "default_user"
+    conversation_manager.clear_session(user_id)
+    return {"status": "success", "message": "Conversation session cleared."}
 

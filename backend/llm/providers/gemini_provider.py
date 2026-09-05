@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import time
 import uuid
@@ -14,12 +15,21 @@ class GeminiProvider(BaseAIProvider):
     """
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key if api_key is not None else (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", ""))
-        self.model = model or os.environ.get("GEMINI_MODEL") or os.environ.get("AI_MODEL", "gemini-3.5-flash")
+        configured_model = model or os.environ.get("GEMINI_MODEL") or os.environ.get("AI_MODEL", "gemini-3.6-flash")
+        # Self-heal legacy deprecated model strings
+        if configured_model in ("gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"):
+            configured_model = "gemini-3.6-flash"
+        self.model = configured_model
         self._client: Optional[httpx.AsyncClient] = None
 
     def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=8.0)
+        try:
+            curr_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            curr_loop = None
+        if self._client is None or self._client.is_closed or getattr(self, "_client_loop", None) != curr_loop:
+            self._client = httpx.AsyncClient(timeout=4.0)
+            self._client_loop = curr_loop
         return self._client
 
     @property
@@ -66,10 +76,13 @@ class GeminiProvider(BaseAIProvider):
         
         contents.append({"role": "user", "parts": [{"text": prompt}]})
 
+        # Ensure adequate token budget for models with internal thought reasoning
+        effective_max_tokens = max(max_tokens, 800)
+
         payload = {
             "contents": contents,
             "generationConfig": {
-                "maxOutputTokens": max_tokens,
+                "maxOutputTokens": effective_max_tokens,
                 "temperature": temperature
             }
         }

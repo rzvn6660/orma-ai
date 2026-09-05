@@ -133,6 +133,15 @@ async def miss_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depe
         "medicine_name": reminder.medicine_name,
         "message": f"Medicine {reminder.medicine_name} was missed."
     })
+
+    from services.notification_service import dispatch_notification
+    await dispatch_notification(
+        db=db,
+        elder_id=subject["id"],
+        title=f"Missed Medication: {reminder.medicine_name}",
+        message=f"Medication {reminder.medicine_name} scheduled for {reminder.reminder_time} was marked as missed.",
+        priority="high"
+    )
         
     return reminder
 

@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 class AIManager:
     """
-    Central Manager for ORMA AI LLM providers with Gemini primary,
-    Groq secondary failover, health checks, latency measurement, and safety enforcement.
+    Central Manager for ORMA AI LLM providers with Groq primary,
+    Gemini secondary failover, health checks, latency measurement, and safety enforcement.
     """
     def __init__(self):
-        self.primary_name = os.environ.get("PRIMARY_LLM_PROVIDER", os.environ.get("AI_PROVIDER", "auto")).lower()
+        self.primary_name = os.environ.get("PRIMARY_LLM_PROVIDER", os.environ.get("AI_PROVIDER", "groq")).lower()
         self.groq = GroqProvider()
         self.gemini = GeminiProvider()
         self.ollama = OllamaProvider()
@@ -34,18 +34,10 @@ class AIManager:
         
         if self.primary_name == "gemini":
             chain = [self.gemini, self.groq, self.ollama, self.fallback]
-        elif self.primary_name == "groq":
-            chain = [self.groq, self.gemini, self.ollama, self.fallback]
         elif self.primary_name == "ollama":
-            chain = [self.ollama, self.gemini, self.groq, self.fallback]
-        else: # "auto" - Gemini primary, Groq secondary
-            if self.gemini.is_available:
-                chain.append(self.gemini)
-            if self.groq.is_available:
-                chain.append(self.groq)
-            if self.ollama.is_available:
-                chain.append(self.ollama)
-            chain.append(self.fallback)
+            chain = [self.ollama, self.groq, self.gemini, self.fallback]
+        else: # Default ("groq" or "auto") - Groq primary, Gemini secondary fallback
+            chain = [self.groq, self.gemini, self.ollama, self.fallback]
 
         result = []
         seen = set()
@@ -120,12 +112,16 @@ class AIManager:
 
             logger.info(f"[AI_MANAGER] Attempting generation with provider '{provider.provider_name}'")
             p_start = time.time()
-            res = await provider.generate_response(
-                prompt=prompt,
-                system_prompt=full_system,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
+            try:
+                res = await provider.generate_response(
+                    prompt=prompt,
+                    system_prompt=full_system,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+            except Exception as e:
+                logger.warning(f"[AI_MANAGER] Provider '{provider.provider_name}' raised exception: {e}. Trying next provider...")
+                continue
             p_latency = int((time.time() - p_start) * 1000)
             
             if res.get("success") and res.get("text"):
