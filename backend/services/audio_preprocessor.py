@@ -4,7 +4,7 @@ import tempfile
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
 import av
-import soundfile as sf
+import wave
 from scipy import signal
 
 logger = logging.getLogger(__name__)
@@ -254,7 +254,17 @@ def preprocess_audio_pipeline(
             fd, output_path = tempfile.mkstemp(suffix="_preprocessed.wav", prefix="orma_asr_")
             os.close(fd)
 
-        sf.write(output_path, normalized_samples, target_sr, subtype='PCM_16')
+        int_samples = np.clip(
+            normalized_samples * 32767.0,
+            -32768.0,
+            32767.0
+        ).astype(np.int16)
+
+        with wave.open(output_path, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(target_sr)
+            wf.writeframes(int_samples.tobytes())
         proc_duration = len(normalized_samples) / float(target_sr)
 
         metadata = {
