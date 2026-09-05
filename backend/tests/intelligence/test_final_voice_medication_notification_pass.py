@@ -15,7 +15,7 @@ from models.notification import Notification
 from services import medicine_service
 from services.notification_service import dispatch_notification
 from intelligence.conversational_reference_resolver import ConversationalReferenceResolver
-from intelligence.orchestrator import IntelligenceOrchestrator, orchestrator
+from intelligence.orchestrator import IntelligenceOrchestrator, orchestrator, ai_manager
 from intelligence.response_coordinator import response_coordinator
 
 @pytest.fixture
@@ -402,7 +402,9 @@ async def test_malayalam_response_language_propagation_and_no_leakage(db, test_u
     assert result["language"] == "ml"
 
     # 2. General utterance in Malayalam (goes through response coordinator)
-    with patch.object(response_coordinator, "generate_response_with_meta", new_callable=AsyncMock) as mock_gen:
+    with patch.object(ai_manager, "check_health", new_callable=AsyncMock) as mock_health, \
+         patch.object(response_coordinator, "generate_response_with_meta", new_callable=AsyncMock) as mock_gen:
+        mock_health.return_value = {"available": True, "provider": "mock"}
         mock_gen.return_value = ("നമസ്കാരം! എനിക്ക് സുഖമാണ്.", {"llm_called": True})
 
         res2 = await orchestrator.process_request_detailed(
