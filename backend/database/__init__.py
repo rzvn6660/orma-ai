@@ -69,8 +69,8 @@ else:
             SQLALCHEMY_DATABASE_URL,
             pool_pre_ping=True,
             pool_recycle=300,
-            pool_size=5,
-            max_overflow=5
+            pool_size=1,
+            max_overflow=2
         )
     except ModuleNotFoundError as e:
         logger.warning(f"[DATABASE] PostgreSQL driver '{e.name}' not installed. Falling back to local SQLite: {DB_PATH}")
