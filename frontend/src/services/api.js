@@ -262,6 +262,10 @@ export const authApi = {
   verifyEmailToken: async (token) => {
     const { data } = await api.post('/api/auth/verify-email', { token });
     return data;
+  },
+  deleteAccount: async () => {
+    const { data } = await api.delete('/api/auth/me');
+    return data;
   }
 };
 

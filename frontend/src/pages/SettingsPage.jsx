@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, User, ShieldCheck, Bell, Eye, Users, Globe, 
-  Clock, Check, Volume2, Moon, Sparkles, AlertCircle, ChevronRight, Mic
+  Clock, Check, Volume2, Moon, Sparkles, AlertCircle, ChevronRight, Mic,
+  Trash2, AlertTriangle, Mail
 } from 'lucide-react';
 import CaregiverLinkManager from '../components/CaregiverLinkManager';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import PhoneEditorModal from '../components/PhoneEditorModal';
 import ReminderLanguageModal from '../components/reminders/ReminderLanguageModal';
 import VoiceLanguageModal from '../components/voice/VoiceLanguageModal';
+import VerifyEmailModal from '../components/VerifyEmailModal';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import OrmaProfileCard from '../components/ui/OrmaProfileCard';
 import OrmaOnboardingModal from '../components/ui/OrmaOnboardingModal';
@@ -19,7 +22,7 @@ import { authApi, notificationApi } from '../services/api';
 import { getLanguageConfig, DEFAULT_REMINDER_LANGUAGE } from '../config/reminderLanguages';
 import { getVoiceLanguageConfig, DEFAULT_VOICE_LANGUAGE } from '../config/voiceLanguages';
 
-export default function SettingsPage({ user }) {
+export default function SettingsPage({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user);
   const [activeSection, setActiveSection] = useState('profile');
   const [languageMode, setLanguageMode] = useState(localStorage.getItem('orma_language_pref') || 'auto');
@@ -32,6 +35,8 @@ export default function SettingsPage({ user }) {
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
   const [isReminderLanguageModalOpen, setIsReminderLanguageModalOpen] = useState(false);
   const [isVoiceLanguageModalOpen, setIsVoiceLanguageModalOpen] = useState(false);
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const isCaregiver = (currentUser?.role === 'caregiver' || user?.role === 'caregiver');
 
@@ -204,6 +209,7 @@ export default function SettingsPage({ user }) {
                   user={currentUser || user} 
                   onEditPhone={() => setIsPhoneModalOpen(true)}
                   onChangePassword={() => setIsPasswordModalOpen(true)}
+                  onVerifyEmail={() => setIsVerifyModalOpen(true)}
                 />
               </div>
             )}
@@ -426,6 +432,39 @@ export default function SettingsPage({ user }) {
                   </div>
 
                   <div className="space-y-4">
+                    {/* Email Verification Status Row */}
+                    <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base font-bold text-white">Email Verification</h3>
+                          {currentUser?.email_verified ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Verified
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" /> Unverified
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {currentUser?.email_verified
+                            ? `Your email (${currentUser?.email}) is verified.`
+                            : `Verification code can be sent to ${currentUser?.email}.`}
+                        </p>
+                      </div>
+                      {!currentUser?.email_verified && (
+                        <button
+                          type="button"
+                          onClick={() => setIsVerifyModalOpen(true)}
+                          className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-xs font-extrabold text-slate-950 transition-colors cursor-pointer shrink-0 shadow-sm"
+                        >
+                          Verify Email
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Password Row */}
                     <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/40 flex items-center justify-between gap-4">
                       <div>
                         <h3 className="text-base font-bold text-white">Password</h3>
@@ -440,6 +479,7 @@ export default function SettingsPage({ user }) {
                       </button>
                     </div>
 
+                    {/* Emergency Phone Number Row */}
                     <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/40 flex items-center justify-between gap-4">
                       <div>
                         <h3 className="text-base font-bold text-white">Emergency Phone Number</h3>
@@ -452,6 +492,29 @@ export default function SettingsPage({ user }) {
                       >
                         Edit Phone
                       </button>
+                    </div>
+
+                    {/* Danger Zone: Delete Account */}
+                    <div className="pt-4 border-t border-white/10">
+                      <div className="p-5 rounded-2xl bg-red-950/20 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <h3 className="text-base font-bold text-red-400 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-400" />
+                            Delete Account
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Permanently delete your account, medications, health records, and AI memories.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteModalOpen(true)}
+                          className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-xs font-extrabold text-white transition-colors cursor-pointer shrink-0 shadow-md shadow-red-600/20 flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Account</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -518,6 +581,32 @@ export default function SettingsPage({ user }) {
           onSelectLanguage={(newLang) => {
             handleUpdateNotifPref('voice_language', newLang);
             setIsVoiceLanguageModalOpen(false);
+          }}
+        />
+
+        {/* Verify Email Modal */}
+        <VerifyEmailModal
+          isOpen={isVerifyModalOpen}
+          onClose={() => setIsVerifyModalOpen(false)}
+          user={currentUser || user}
+          onVerified={(updatedUser) => {
+            setCurrentUser(prev => ({ ...(prev || {}), ...(updatedUser || {}), email_verified: true }));
+            showSavedToast();
+          }}
+        />
+
+        {/* Delete Account Modal */}
+        <DeleteAccountModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          user={currentUser || user}
+          onAccountDeleted={() => {
+            if (onLogout) {
+              onLogout();
+            } else {
+              localStorage.removeItem('orma_token');
+              window.location.href = '/';
+            }
           }}
         />
       </div>

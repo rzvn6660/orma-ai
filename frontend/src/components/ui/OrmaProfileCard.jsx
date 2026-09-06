@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { User, ShieldCheck, Mail, Globe, KeyRound, Phone, Plus, Edit2 } from 'lucide-react';
+import { User, ShieldCheck, Mail, Globe, KeyRound, Phone, Plus, Edit2, Check, AlertCircle } from 'lucide-react';
 
 export default function OrmaProfileCard({
   user,
   onEditProfile,
   onChangePassword,
   onEditPhone,
+  onVerifyEmail,
   className = ''
 }) {
   const isCaregiver = user?.role === 'caregiver';
@@ -44,6 +45,23 @@ export default function OrmaProfileCard({
                 <div className="flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-slate-500" />
                   <span>{displayEmail}</span>
+                  {user?.email_verified ? (
+                    <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Verified
+                    </span>
+                  ) : onVerifyEmail ? (
+                    <button
+                      type="button"
+                      onClick={onVerifyEmail}
+                      className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <AlertCircle className="w-3 h-3" /> Verify Email
+                    </button>
+                  ) : (
+                    <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> Unverified
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5 text-slate-500" />

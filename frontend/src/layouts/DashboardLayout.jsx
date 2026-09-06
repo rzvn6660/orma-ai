@@ -7,7 +7,8 @@ import BrandLogo from '../components/BrandLogo';
 import ProfileDropdown from '../components/ui/ProfileDropdown';
 import CaregiverEmergencyOverlay from '../components/ui/CaregiverEmergencyOverlay';
 import CaregiverEmergencyBanner from '../components/ui/CaregiverEmergencyBanner';
-import { Menu, LogOut } from 'lucide-react';
+import VerifyEmailModal from '../components/VerifyEmailModal';
+import { Menu, LogOut, Mail, AlertCircle } from 'lucide-react';
 import { startEmergencySound, stopEmergencySound, isAudioRestricted } from '../utils/emergencyAudio';
 import { emergencyApi } from '../services/api';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -23,6 +24,10 @@ export default function DashboardLayout({ children, currentView, onViewChange, u
   const [incomingEmergency, setIncomingEmergency] = useState(null);
   const [dismissedOverlayId, setDismissedOverlayId] = useState(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+
+  // Email Verification modal & banner states
+  const [isVerifyEmailModalOpen, setIsVerifyEmailModalOpen] = useState(false);
+  const [verificationDismissed, setVerificationDismissed] = useState(false);
 
   const isCaregiver = user?.role === 'caregiver';
 
@@ -237,6 +242,43 @@ export default function DashboardLayout({ children, currentView, onViewChange, u
               }}
             />
           )}
+
+          {/* Unverified Email Alert Banner */}
+          {user && user.email_verified === false && !verificationDismissed && (
+            <div className="p-4 sm:p-4.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-200 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-amber-200 flex items-center gap-2">
+                    Verify your email address
+                  </p>
+                  <p className="text-xs text-amber-300/80 mt-0.5">
+                    Your account is active. Verify <span className="font-semibold text-white">{user.email}</span> to secure recovery and emergency alerts.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5 self-end sm:self-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsVerifyEmailModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition-colors shadow-sm cursor-pointer"
+                >
+                  Verify Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVerificationDismissed(true)}
+                  className="p-2 text-amber-400/60 hover:text-amber-200 transition-colors cursor-pointer text-xs"
+                  aria-label="Dismiss banner"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {children}
         </div>
       </main>
@@ -279,6 +321,13 @@ export default function DashboardLayout({ children, currentView, onViewChange, u
           }}
         />
       )}
+
+      {/* Verify Email Modal */}
+      <VerifyEmailModal
+        isOpen={isVerifyEmailModalOpen}
+        onClose={() => setIsVerifyEmailModalOpen(false)}
+        user={user}
+      />
     </div>
   );
 }

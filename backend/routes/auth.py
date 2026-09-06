@@ -449,7 +449,11 @@ def verify_email_otp(data: VerifyEmailOTPRequest, db: Session = Depends(get_db))
     db.commit()
     
     logger.info(f"[EMAIL-VERIFICATION] Email verified successfully for {normalized_email}")
-    return {"message": "Email verified successfully. You can now sign in with your password."}
+    return {
+        "message": "Email verified successfully. You can now sign in with your password.",
+        "email_verified": True,
+        "user": format_user_dict(db_user, db) if db_user else None
+    }
 
 @router.post("/resend-verification-otp")
 @router.post("/resend-email-otp")
@@ -1158,6 +1162,16 @@ def delete_account(current_user: User = Depends(get_current_user), db: Session =
 
     # 9. Delete User record
     db.delete(current_user)
+
+    # 10. Record system audit event (without foreign key user_id)
+    system_log = AuditLog(
+        user_id=None,
+        action="account_deleted",
+        resource="user",
+        outcome="success",
+        details=f"User account {user_id} and all associated records permanently deleted upon user request."
+    )
+    db.add(system_log)
     db.commit()
 
     logger.info(f"[AUTH-DELETE-ACCOUNT] Account for user_id={user_id} successfully deleted.")

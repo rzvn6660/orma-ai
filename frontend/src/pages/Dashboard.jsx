@@ -771,7 +771,7 @@ export default function Dashboard({ currentView, onViewChange, user, onLogout })
   if (currentView === 'settings') {
     return (
       <DashboardLayout currentView="settings" onViewChange={onViewChange} user={user} onLogout={onLogout}>
-        <SettingsPage user={user} />
+        <SettingsPage user={user} onLogout={onLogout} />
       </DashboardLayout>
     );
   }
