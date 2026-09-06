@@ -60,6 +60,18 @@ def generate_connection_code(current_user: User = Depends(get_elderly_user), db:
     
     return {"code": new_code.code, "expires_at": new_code.expires_at}
 
+@router.get("/active_code")
+def get_active_connection_code(current_user: User = Depends(get_elderly_user), db: Session = Depends(get_db)):
+    code_record = db.query(ConnectionCode).filter(
+        ConnectionCode.elder_id == current_user.id,
+        ConnectionCode.is_used == False,
+        ConnectionCode.expires_at > datetime.utcnow()
+    ).order_by(ConnectionCode.expires_at.desc()).first()
+    
+    if code_record:
+        return {"code": code_record.code, "expires_at": code_record.expires_at}
+    return {"code": None, "expires_at": None}
+
 @router.post("/connect")
 async def connect_caregiver(req: CodeRequest, current_user: User = Depends(get_caregiver_user), db: Session = Depends(get_db)):
     check_rate_limit(db, current_user.id, "code_attempt")

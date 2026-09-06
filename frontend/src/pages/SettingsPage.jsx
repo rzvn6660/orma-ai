@@ -129,12 +129,9 @@ export default function SettingsPage({ user, onLogout }) {
     { id: 'profile', label: 'My Profile', icon: User },
     { id: 'notifications', label: 'Notifications & Spoken Voice', icon: Bell },
     { id: 'accessibility', label: 'Elderly Display & Sound', icon: Eye },
+    { id: 'family_connections', label: 'Family Connections', icon: Users },
     { id: 'security', label: 'Account & Security', icon: ShieldCheck },
   ];
-
-  if (isCaregiver) {
-    navItems.splice(3, 0, { id: 'family_connections', label: 'Family Connections', icon: Users });
-  }
 
   return (
     <ErrorBoundary>
@@ -413,7 +410,7 @@ export default function SettingsPage({ user, onLogout }) {
             )}
 
             {/* 4. FAMILY CONNECTIONS SECTION */}
-            {activeSection === 'family_connections' && isCaregiver && (
+            {activeSection === 'family_connections' && (
               <div className="space-y-6">
                 <CaregiverLinkManager user={currentUser || user} />
               </div>

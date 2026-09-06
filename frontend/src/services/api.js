@@ -274,6 +274,10 @@ export const linkApi = {
     const { data } = await api.post('/api/link/generate_code');
     return data;
   },
+  getActiveCode: async () => {
+    const { data } = await api.get('/api/link/active_code');
+    return data;
+  },
   connectCaregiver: async (code) => {
     const { data } = await api.post('/api/link/connect', { code });
     return data;
