@@ -135,7 +135,7 @@ export default function SettingsPage({ user, onLogout }) {
 
   return (
     <ErrorBoundary>
-      <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-fade-in">
+      <div className="w-full max-w-4xl mx-auto space-y-6 pb-12 animate-fade-in">
         
         {/* Toast Banner */}
         <AnimatePresence>
