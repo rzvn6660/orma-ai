@@ -271,6 +271,8 @@ def run_tests():
     assert "token_hash" not in user_dict
     assert "resend_api_key" not in user_dict
     assert "smtp_pass" not in user_dict
+    assert "gmail_client_secret" not in user_dict
+    assert "gmail_refresh_token" not in user_dict
     print("  -> [PASS] Zero credential disclosure across API responses")
     results["10_sensitive_credentials_isolated"] = "PASS"
 
@@ -380,6 +382,11 @@ def run_tests():
         print(f"  [{status_val}] {check}: {status_val}")
     print("=" * 75)
     return results
+
+def test_auth_security_suite():
+    results = run_tests()
+    for check, status_val in results.items():
+        assert status_val == "PASS", f"Check {check} failed: {status_val}"
 
 if __name__ == "__main__":
     run_tests()

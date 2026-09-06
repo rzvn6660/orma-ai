@@ -14,6 +14,7 @@ from main import app
 from database import SessionLocal, ensure_schema_migrations
 from models.user import User, AuditLog, PasswordResetToken, RateLimit, EmailVerificationOTP
 from services.auth_service import get_password_hash
+from services.gmail_email_service import is_gmail_configured, send_gmail_message
 
 # Ensure migrations
 ensure_schema_migrations()
@@ -47,8 +48,9 @@ def run_step11e_acceptance_tests():
         })
         assert signup_res.status_code == 200, f"Signup failed: {signup_res.text}"
         signup_data = signup_res.json()
-        assert signup_data.get("requires_email_verification") is True or signup_data.get("requires_verification") is True
-        assert "access_token" not in signup_data, "Unverified user must not receive access token on signup"
+        assert "access_token" in signup_data
+        assert signup_data.get("token_type") == "bearer"
+        assert signup_data.get("requires_verification") is False
 
         user_a = db.query(User).filter(User.email == test_email_a).first()
         assert user_a is not None
@@ -110,10 +112,17 @@ def run_step11e_acceptance_tests():
             "email": test_email_b,
             "password": password_initial
         })
-        assert unverified_login.status_code == 403
-        assert "verify your email" in unverified_login.json()["detail"].lower()
+        assert unverified_login.status_code == 200
+        assert "access_token" in unverified_login.json()
+        assert unverified_login.json()["token_type"] == "bearer"
+        # Invalid credentials must still fail
+        invalid_login = client.post("/api/auth/login", json={
+            "email": test_email_b,
+            "password": "WrongPassword999!"
+        })
+        assert invalid_login.status_code == 401
         results["TEST_2_UNVERIFIED_LOGIN"] = "REAL PASS"
-        print("  -> [REAL PASS] Unverified login blocked with HTTP 403 Forbidden")
+        print("  -> [REAL PASS] Unverified login succeeds with HTTP 200 and access_token")
 
         # =============================================================
         # TEST 3 — RESEND OTP
@@ -376,34 +385,31 @@ def run_step11e_acceptance_tests():
         print("  -> [REAL PASS] Multi-tenant isolation verified across sessions, OTPs, and password resets")
 
         # =============================================================
-        # LIVE OUTBOUND RESEND DELIVERY TEST
+        # LIVE OUTBOUND GMAIL API DELIVERY TEST
         # =============================================================
-        print("\n[LIVE OUTBOUND DELIVERY] Verifying Live Resend API Dispatch...")
-        resend_api_key = os.environ.get("RESEND_API_KEY", "").strip()
+        print("\n[LIVE OUTBOUND DELIVERY] Verifying Live Gmail API Dispatch...")
         recipient = "rizvinmk@gmail.com"
-        if resend_api_key and not resend_api_key.startswith("re_xxxxxxxxx"):
+        if is_gmail_configured():
             try:
-                import resend
-                resend.api_key = resend_api_key
-                resend_from = os.environ.get("RESEND_FROM", "").strip() or "onboarding@resend.dev"
                 live_otp = f"{secrets.randbelow(900000) + 100000:06d}"
-                params = {
-                    "from": resend_from,
-                    "to": [recipient],
-                    "subject": "Verify your ORMA AI account — Step 11E Acceptance",
-                    "html": f"<p>Your ORMA AI Step 11E acceptance verification code is <strong>{live_otp}</strong>. Valid for 5 minutes.</p>",
-                    "text": f"Your ORMA AI Step 11E acceptance verification code is {live_otp}. Valid for 5 minutes."
-                }
-                send_res = resend.Emails.send(params)
-                res_id = getattr(send_res, 'id', send_res.get('id', 'ok') if isinstance(send_res, dict) else 'ok')
-                results["REAL_RESEND_DELIVERY"] = f"REAL PASS (DELIVERED id={res_id})"
-                print(f"  -> [REAL PASS] Real verification email delivered via Resend API to {recipient} (id={res_id})")
+                subject = "Verify your ORMA AI account — Step 11E Acceptance"
+                html_body = f"<p>Your ORMA AI Step 11E acceptance verification code is <strong>{live_otp}</strong>. Valid for 5 minutes.</p>"
+                text_body = f"Your ORMA AI Step 11E acceptance verification code is {live_otp}. Valid for 5 minutes."
+                send_res = send_gmail_message(
+                    to_email=recipient,
+                    subject=subject,
+                    html_content=html_body,
+                    text_content=text_body
+                )
+                res_id = send_res.get('id', 'ok') if isinstance(send_res, dict) else 'ok'
+                results["REAL_GMAIL_DELIVERY"] = f"REAL PASS (DELIVERED id={res_id})"
+                print(f"  -> [REAL PASS] Real verification email delivered via Gmail API to {recipient} (id={res_id})")
             except Exception as e:
-                results["REAL_RESEND_DELIVERY"] = f"FAIL ({str(e)})"
-                print(f"  -> [FAIL] Resend error: {e}")
+                results["REAL_GMAIL_DELIVERY"] = f"FAIL ({str(e)})"
+                print(f"  -> [FAIL] Gmail API error: {e}")
         else:
-            results["REAL_RESEND_DELIVERY"] = "NOT_TESTABLE_NO_CREDENTIALS"
-            print("  -> [NOT_TESTABLE_NO_CREDENTIALS] Resend API key not configured")
+            results["REAL_GMAIL_DELIVERY"] = "NOT_TESTABLE_NO_CREDENTIALS"
+            print("  -> [NOT_TESTABLE_NO_CREDENTIALS] Gmail API credentials not configured; simulated in dev mode")
 
         print("\n" + "=" * 80)
         print("STEP 11E AUTHENTICATION ACCEPTANCE SUMMARY — ALL CHECKS COMPLETED")
@@ -420,7 +426,31 @@ def run_step11e_acceptance_tests():
         return all_passed
 
     finally:
-        db.close()
+        try:
+            cleanup_emails = [test_email_a, test_email_b, test_email_c]
+            for em in cleanup_emails:
+                if not em:
+                    continue
+                users = db.query(User).filter(User.email.like(f"%{em.split('@')[0]}%") if "@" in em else User.email == em).all()
+                for u in users:
+                    db.query(EmailVerificationOTP).filter(EmailVerificationOTP.user_id == u.id).delete()
+                    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == u.id).delete()
+                    db.query(AuditLog).filter(AuditLog.user_id == u.id).delete()
+                    try:
+                        from models.user import NotificationPreferences
+                        db.query(NotificationPreferences).filter(NotificationPreferences.user_id == u.id).delete()
+                    except Exception:
+                        pass
+                    db.delete(u)
+            db.commit()
+        except Exception as cleanup_err:
+            db.rollback()
+            print(f"  [CLEANUP NOTE] {cleanup_err}")
+        finally:
+            db.close()
+
+def test_authentication_acceptance_suite():
+    assert run_step11e_acceptance_tests() is True
 
 if __name__ == "__main__":
     success = run_step11e_acceptance_tests()

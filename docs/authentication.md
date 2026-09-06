@@ -12,9 +12,10 @@ ORMA AI implements a secure, role-aware, zero-trust authentication architecture 
 1. **Signup**:
    - Creates user with `email_verified=False` and `is_active=True`.
    - Passwords are encrypted using Bcrypt (`passlib.context.CryptContext` with salt rounds = 12).
+   - Returns immediate JWT `access_token` and `token_type="bearer"` for immediate application access.
    - Generates a cryptographically random 6-digit Email Verification OTP.
    - Computes SHA-256 hash of OTP and stores in `email_verification_otps` table with 5-minute expiry.
-   - Dispatches real email via Resend API (`resend.Emails.send`).
+   - Dispatches email via Gmail API HTTPS transport (`POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send`).
 
 2. **Email Verification**:
    - `POST /api/auth/verify-email-otp` validates the entered OTP against `sha256(raw_otp)`.
@@ -25,7 +26,7 @@ ORMA AI implements a secure, role-aware, zero-trust authentication architecture 
 
 3. **Login Enforcement**:
    - `POST /api/auth/login` verifies Bcrypt hash.
-   - Rejects unverified accounts with `HTTP 403 Forbidden` (`{"detail": "Please verify your email address before logging in."}`).
+   - Allows login for valid credentials regardless of email verification status (immediate tester onboarding).
    - Implements failed-attempt rate limiting (5 attempts per window).
    - Issues a signed JWT Access Token with `sub=user.id`, `role=user.role`, and explicit expiration.
 

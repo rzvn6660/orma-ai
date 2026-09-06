@@ -19,10 +19,14 @@ services:
         value: /data/uploads/documents
       - key: JWT_SECRET_KEY
         generateValue: true
-      - key: RESEND_API_KEY
+      - key: GMAIL_CLIENT_ID
         sync: false
-      - key: RESEND_FROM
-        value: onboarding@resend.dev
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_SENDER_EMAIL
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: GROQ_API_KEY

@@ -13,11 +13,12 @@ import secrets
 import time
 import hashlib
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import logging
 from services import google_auth_service
+from services.gmail_email_service import send_gmail_message
 from services.notification_preference_service import get_user_notification_preferences
+
+logger = logging.getLogger(__name__)
 
 def check_resend_otp_rate_limit(db: Session, email_key: str):
     """
@@ -275,61 +276,22 @@ ORMA AI — Care. Connect. Remember.
 </body>
 </html>"""
 
-    # 1. Primary: Resend API
-    resend_api_key = os.environ.get("RESEND_API_KEY", "").strip()
-    if resend_api_key and not resend_api_key.startswith("re_xxxxxxxxx"):
-        try:
-            import resend
-            resend.api_key = resend_api_key
-            resend_from = os.environ.get("RESEND_FROM", "").strip() or "onboarding@resend.dev"
-            params = {
-                "from": resend_from,
-                "to": [to_email],
-                "subject": subject,
-                "html": body_html,
-                "text": body_text
-            }
-            resend_resp = resend.Emails.send(params)
-            logger.info(f"[EMAIL-VERIFICATION] Verification OTP email delivered via Resend API to {to_email}")
-            return
-        except Exception as e:
-            logger.error(f"[EMAIL-VERIFICATION] Resend API delivery failed: {type(e).__name__} ({str(e)}). Attempting SMTP fallback...")
-
-    # 2. Secondary: SMTP
-    smtp_host = os.environ.get("SMTP_HOST", "").strip()
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER", "").strip()
-    smtp_pass = os.environ.get("SMTP_PASS", "").strip()
-    smtp_from = os.environ.get("SMTP_FROM", "").strip() or smtp_user or "noreply@orma.ai"
-    env_mode = os.environ.get("ENVIRONMENT", os.environ.get("ENV", "development")).strip().lower()
-
-    if not smtp_host or not smtp_user or not smtp_pass:
-        if env_mode == "production":
-            logger.error("[EMAIL-VERIFICATION] Neither Resend nor SMTP credentials configured in production.")
-        else:
-            logger.warning("[EMAIL-VERIFICATION] Development mode — email simulation.")
+    try:
+        resp = send_gmail_message(
+            to_email=to_email,
+            subject=subject,
+            body_html=body_html,
+            body_text=body_text,
+            sender_name="ORMA AI",
+        )
+        if resp.get("status") == "simulated":
             print(f"\n{'='*60}")
             print(f"[ORMA EMAIL VERIFICATION] Development mode — email simulation.")
             print(f"Verification Code for {to_email}: {otp}")
             print(f"{'='*60}\n")
-        return
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = smtp_from
-        msg["To"] = to_email
-        msg.attach(MIMEText(body_text, "plain", "utf-8"))
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, [to_email], msg.as_string())
-
-        logger.info(f"[EMAIL-VERIFICATION] Verification OTP delivered via SMTP to {to_email}")
     except Exception as e:
-        logger.error(f"[EMAIL-VERIFICATION] SMTP send failed: {type(e).__name__}")
+        logger.error(f"[EMAIL-VERIFICATION] Gmail API send failed: {type(e).__name__}")
+
 
 
 @router.post("/signup")
@@ -367,7 +329,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    log = AuditLog(user_id=new_user.id, action="signup", details=f"User signed up as {user.role}, pending email verification")
+    log = AuditLog(user_id=new_user.id, action="signup", details=f"User signed up as {user.role}")
     db.add(log)
     
     # Generate random 6-digit OTP (5-minute expiry)
@@ -391,11 +353,18 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     
     _send_verification_otp_email(normalized_email, raw_otp)
     
+    access_token = create_access_token(
+        data={"sub": new_user.id, "role": new_user.role, "ver": new_user.token_version or 1},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
     return {
-        "message": "Account created. Please verify your email address to continue.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "message": "Account created successfully.",
         "email": normalized_email,
-        "requires_verification": True,
-        "requires_email_verification": True,
+        "requires_verification": False,
+        "requires_email_verification": False,
         "user": format_user_dict(new_user, db)
     }
 
@@ -635,15 +604,6 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-        
-    # 2. Check email verification status for email/password accounts
-    if not getattr(db_user, "email_verified", True):
-        logger.info(f"[AUTH-LOGIN {req_id}] authentication rejected (email not verified)")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email before signing in."
-        )
-
     # Clear rate limit counter on successful login
     clear_login_rate_limit(db, normalized_email)
     
@@ -878,17 +838,10 @@ RESET_TOKEN_EXPIRE_MINUTES = 30
 
 def _send_reset_email(to_email: str, reset_url: str):
     """
-    Send reset email via SMTP if env vars are configured.
+    Send reset email via Gmail API (HTTPS).
     Falls back to printing reset URL to server console (development mode).
     NEVER logs passwords, tokens, or credentials.
     """
-    smtp_host = os.environ.get("SMTP_HOST", "").strip()
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_user = os.environ.get("SMTP_USER", "").strip()
-    smtp_pass = os.environ.get("SMTP_PASS", "").strip()
-    smtp_from = os.environ.get("SMTP_FROM", "").strip() or smtp_user or "noreply@orma.ai"
-    env_mode = os.environ.get("ENVIRONMENT", os.environ.get("ENV", "development")).strip().lower()
-
     subject = "Reset your ORMA AI password"
 
     body_text = f"""Hello,
@@ -940,55 +893,23 @@ ORMA AI — Care. Connect. Remember.
 </body>
 </html>"""
 
-    # 1. Primary Email Delivery: Resend API (if configured)
-    resend_api_key = os.environ.get("RESEND_API_KEY", "").strip()
-    if resend_api_key and not resend_api_key.startswith("re_xxxxxxxxx"):
-        try:
-            import resend
-            resend.api_key = resend_api_key
-            resend_from = os.environ.get("RESEND_FROM", "").strip() or "onboarding@resend.dev"
-            params = {
-                "from": resend_from,
-                "to": [to_email],
-                "subject": subject,
-                "html": body_html,
-                "text": body_text
-            }
-            resend_resp = resend.Emails.send(params)
-            logger.info(f"[PASSWORD-RESET] Reset email delivered via Resend API to {to_email} (id={getattr(resend_resp, 'id', resend_resp.get('id', 'ok') if isinstance(resend_resp, dict) else 'ok')})")
-            return
-        except Exception as e:
-            logger.error(f"[PASSWORD-RESET] Resend API delivery failed: {type(e).__name__} ({str(e)}). Attempting SMTP fallback...")
-
-    # 2. Secondary Email Delivery: SMTP
-    if not smtp_host or not smtp_user or not smtp_pass:
-        if env_mode == "production":
-            logger.error("[PASSWORD-RESET] Neither Resend nor SMTP credentials configured in production. Email not sent.")
-        else:
-            logger.warning("[PASSWORD-RESET] Resend/SMTP not configured. Development mode — email not sent.")
+    try:
+        resp = send_gmail_message(
+            to_email=to_email,
+            subject=subject,
+            body_html=body_html,
+            body_text=body_text,
+            sender_name="ORMA AI",
+        )
+        if resp.get("status") == "simulated":
             print(f"\n{'='*60}")
-            print(f"[ORMA PASSWORD RESET] Development mode — email not sent.")
+            print(f"[ORMA PASSWORD RESET] Development mode — email simulation.")
             print(f"Reset URL for {to_email}:")
             print(f"  {reset_url}")
             print(f"{'='*60}\n")
-        return
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = smtp_from
-        msg["To"] = to_email
-        msg.attach(MIMEText(body_text, "plain", "utf-8"))
-        msg.attach(MIMEText(body_html, "html", "utf-8"))
-
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, [to_email], msg.as_string())
-
-        logger.info(f"[PASSWORD-RESET] Reset email delivered via SMTP to {to_email}")
     except Exception as e:
-        logger.error(f"[PASSWORD-RESET] SMTP send failed: {type(e).__name__}")
+        logger.error(f"[PASSWORD-RESET] Gmail API send failed: {type(e).__name__}")
+
 
 
 # ──────────────────────────────────────────────────────────────

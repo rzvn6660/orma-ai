@@ -28,7 +28,7 @@ if backend_dir not in sys.path:
 from fastapi.testclient import TestClient
 from main import app
 from database import SessionLocal
-from models.user import User, PasswordResetToken, AuditLog
+from models.user import User, PasswordResetToken, AuditLog, NotificationPreferences, EmailVerificationOTP
 from services.auth_service import verify_password, get_password_hash, create_access_token
 
 client = TestClient(app)
@@ -54,7 +54,9 @@ def run_audit_tests():
     })
     assert res.status_code == 200, f"Signup failed: {res.text}"
     signup_data = res.json()
-    assert signup_data.get("requires_verification") is True
+    assert "access_token" in signup_data
+    assert signup_data.get("token_type") == "bearer"
+    assert signup_data.get("requires_verification") is False
     assert signup_data.get("email") == test_email
     
     # Retrieve user from DB and verify account for subsequent auth checks
@@ -205,11 +207,23 @@ def run_audit_tests():
     print(f"  -> [MOCKED DETECTED] Phone OTP operates on static demo OTP 123456, in-memory store, synthetic email")
     
     # Clean up test user
+    db.query(EmailVerificationOTP).filter(EmailVerificationOTP.user_id == user_id).delete()
     db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
     db.query(AuditLog).filter(AuditLog.user_id == user_id).delete()
+    try:
+        db.query(NotificationPreferences).filter(NotificationPreferences.user_id == user_id).delete()
+    except Exception:
+        pass
     db.query(User).filter(User.id == user_id).delete()
     # Clean up phone test user
-    db.query(User).filter(User.email == "+919876543210@phone.local").delete()
+    phone_user = db.query(User).filter(User.email == "+919876543210@phone.local").first()
+    if phone_user:
+        db.query(AuditLog).filter(AuditLog.user_id == phone_user.id).delete()
+        try:
+            db.query(NotificationPreferences).filter(NotificationPreferences.user_id == phone_user.id).delete()
+        except Exception:
+            pass
+        db.delete(phone_user)
     db.commit()
     db.close()
     
@@ -219,6 +233,9 @@ def run_audit_tests():
     for check, status in audit_results.items():
         print(f"  [{status.split()[0]}] {check}: {status}")
     print("=" * 70)
+
+def test_authentication_audit_suite():
+    run_audit_tests()
 
 if __name__ == "__main__":
     run_audit_tests()

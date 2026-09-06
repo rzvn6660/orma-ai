@@ -171,7 +171,6 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
   const [verifyEmailAddress, setVerifyEmailAddress] = useState('');
   const [emailVerifySuccess, setEmailVerifySuccess] = useState(false);
   const [emailVerifyCooldown, setEmailVerifyCooldown] = useState(0);
-  const [unverifiedLoginEmail, setUnverifiedLoginEmail] = useState('');
 
   // Link-based email token verification state
   const [tokenVerifyState, setTokenVerifyState] = useState(null); // null, 'loading', 'success', 'error'
@@ -346,7 +345,6 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
     e.preventDefault();
     if (loading) return;
     setError('');
-    setUnverifiedLoginEmail('');
     setLoading(true);
     try {
       if (view === 'login') {
@@ -355,24 +353,13 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
         onLogin(res.user);
       } else {
         const res = await authApi.signup({ ...formData, role });
-        if (res.requires_verification) {
-          setVerifyEmailAddress(formData.email);
-          setEmailOtp('');
-          setEmailVerifySuccess(false);
-          setEmailVerifyCooldown(60);
-          setView('email-otp');
-        } else if (res.access_token) {
+        if (res.access_token) {
           localStorage.setItem('orma_token', res.access_token);
           onLogin(res.user);
         }
       }
     } catch (err) {
-      if (err.response?.status === 403 && err.response?.data?.detail?.includes('verify your email')) {
-        setUnverifiedLoginEmail(formData.email);
-        setError('Please verify your email before signing in.');
-      } else {
-        setError(getAuthErrorMessage(err));
-      }
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -570,28 +557,9 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
                 </div>
 
                 {error && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm font-semibold space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                    {unverifiedLoginEmail && (
-                      <div className="pt-2 border-t border-red-200/60 flex items-center justify-between">
-                        <span className="text-xs text-red-600 font-normal">Need to verify?</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVerifyEmailAddress(unverifiedLoginEmail);
-                            setEmailOtp('');
-                            setError('');
-                            setView('email-otp');
-                          }}
-                          className="text-xs font-bold text-purple-700 hover:text-purple-900 underline underline-offset-2 cursor-pointer"
-                        >
-                          Enter Verification Code →
-                        </button>
-                      </div>
-                    )}
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm font-semibold flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                    <span>{error}</span>
                   </div>
                 )}
 

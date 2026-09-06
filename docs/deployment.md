@@ -19,7 +19,7 @@ The recommended production architecture for ORMA AI's private web deployment dec
 │  • Persistent Volume mounted at /data                       │
 │    - SQLite Database: /data/orma.db                         │
 │    - Uploaded Documents: /data/uploads/documents            │
-│  • Resend API for verified email OTP delivery               │
+│  • Gmail API (HTTPS) for verified email OTP & password reset │
 │  • Gemini & Groq dual LLM failover                          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -38,8 +38,10 @@ The recommended production architecture for ORMA AI's private web deployment dec
 | `RAG_UPLOAD_DIR` | **Yes** | Absolute path to RAG document storage | `/data/uploads/documents` |
 | `FRONTEND_URL` | **Yes** | Public frontend URL for password reset links & CORS | `https://orma-frontend.vercel.app` |
 | `ALLOWED_ORIGINS` | **Yes** | Comma-separated CORS allowed origins | `https://orma-frontend.vercel.app` |
-| `RESEND_API_KEY` | **Yes** | Resend API key for OTP and password reset emails | `re_123456789...` |
-| `RESEND_FROM` | **Yes** | Verified sender email address | `onboarding@resend.dev` or `noreply@yourdomain.com` |
+| `GMAIL_CLIENT_ID` | **Yes** | Google OAuth Client ID for Gmail API email delivery | `xxxx.apps.googleusercontent.com` |
+| `GMAIL_CLIENT_SECRET` | **Yes** | Google OAuth Client Secret for Gmail API email delivery | `GOCSPX-xxxx` |
+| `GMAIL_REFRESH_TOKEN` | **Yes** | Google OAuth Refresh Token for Gmail API email delivery | `1//0xxxx` |
+| `GMAIL_SENDER_EMAIL` | **Yes** | Dedicated Gmail account sender address | `orma.assistant@gmail.com` |
 | `GEMINI_API_KEY` | **Yes** | Google Gemini API key (Primary LLM) | `AIzaSy...` |
 | `GROQ_API_KEY` | **Yes** | Groq API key (Fallback LLM) | `gsk_...` |
 | `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID for social login | `your-client-id.apps.googleusercontent.com` |

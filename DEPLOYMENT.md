@@ -15,8 +15,10 @@ This guide details the exact environment variables, persistent storage setup, an
 |---|---|---|
 | `ENVIRONMENT` | Application operational mode | `production` |
 | `JWT_SECRET_KEY` | Cryptographic secret key for signing auth tokens (min 32 chars) | `a_strong_random_64_char_hex_secret` |
-| `RESEND_API_KEY` | Resend API key for transactional emails (OTP, password reset) | `re_xxxxxxxxxxxxxxxxxxxx` |
-| `RESEND_FROM` | Verified sender address | `onboarding@resend.dev` or `noreply@yourdomain.com` |
+| `GMAIL_CLIENT_ID` | Google OAuth Client ID for Gmail API email delivery | `xxxx.apps.googleusercontent.com` |
+| `GMAIL_CLIENT_SECRET` | Google OAuth Client Secret for Gmail API email delivery | `GOCSPX-xxxx` |
+| `GMAIL_REFRESH_TOKEN` | Google OAuth Refresh Token for Gmail API email delivery | `1//0xxxx` |
+| `GMAIL_SENDER_EMAIL` | Dedicated Gmail account sender address | `orma.assistant@gmail.com` |
 | `GEMINI_API_KEY` | Google Gemini API key (Primary LLM) | `AIzaSyxxxxxxxxxxxxxxxxx` |
 | `GROQ_API_KEY` | Groq Cloud API key (Secondary Failover LLM) | `gsk_xxxxxxxxxxxxxxxxxxx` |
 | `PRIMARY_PROVIDER` | Default LLM provider | `gemini` |

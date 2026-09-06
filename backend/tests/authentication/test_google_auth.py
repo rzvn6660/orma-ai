@@ -10,7 +10,7 @@ if backend_dir not in sys.path:
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
-from models.user import User
+from models.user import User, AuditLog, NotificationPreferences, EmailVerificationOTP, PasswordResetToken
 from routes.auth import router as auth_router
 
 app = FastAPI()
@@ -22,12 +22,23 @@ client = TestClient(app)
 def setup_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
-    # Clean up test users
-    db.query(User).filter(User.email.in_(["google_test_existing@gmail.com", "google_test_new@gmail.com"])).delete(synchronize_session=False)
-    db.commit()
+    def _cleanup():
+        test_emails = ["google_test_existing@gmail.com", "google_test_new@gmail.com"]
+        users = db.query(User).filter(User.email.in_(test_emails)).all()
+        for u in users:
+            db.query(EmailVerificationOTP).filter(EmailVerificationOTP.user_id == u.id).delete()
+            db.query(PasswordResetToken).filter(PasswordResetToken.user_id == u.id).delete()
+            db.query(AuditLog).filter(AuditLog.user_id == u.id).delete()
+            try:
+                db.query(NotificationPreferences).filter(NotificationPreferences.user_id == u.id).delete()
+            except Exception:
+                pass
+            db.delete(u)
+        db.commit()
+
+    _cleanup()
     yield
-    db.query(User).filter(User.email.in_(["google_test_existing@gmail.com", "google_test_new@gmail.com"])).delete(synchronize_session=False)
-    db.commit()
+    _cleanup()
     db.close()
 
 def test_google_auth_missing_token():
