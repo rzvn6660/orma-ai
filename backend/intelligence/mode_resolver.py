@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,37 @@ class ModeResolver:
                     "tool_required": True,
                     "tool": "rag_document_retriever",
                     "reason": "LLM provider unavailable for document synthesis. Graceful fallback active."
+                }
+
+        # 4b. Conversational Medication Creation: Deterministic multi-turn task with confirmation gate
+        if intent == "Medicine":
+            med_creation_patterns = [
+                r"\bmy medicine is at\b",
+                r"\bmy medicine at\b",
+                r"\bmedicine is at\b",
+                r"\badd (?:a )?(?:new )?medicine\b",
+                r"\badd (?:a )?(?:new )?medication\b",
+                r"\bcreate (?:a )?(?:new )?medicine\b",
+                r"\bcreate (?:a )?(?:new )?medication\b",
+                r"\bschedule (?:a )?(?:new )?medicine\b",
+                r"\bschedule (?:a )?(?:new )?medication\b",
+                r"\bremind me to take (?:my )?medicine\b",
+                r"\bremind me to take (?:my )?medication\b",
+                r"\bset (?:a )?reminder for (?:my )?medicine\b",
+                r"\bnew medicine\b",
+                r"\bnew medication\b",
+                r"മരുന്ന് ചേർക്കുക",
+                r"മരുന്ന് ചേർക്കൂ",
+                r"പുതിയ മരുന്ന്",
+                r"എന്റെ മരുന്ന്"
+            ]
+            if any(re.search(p, low) for p in med_creation_patterns):
+                return {
+                    "mode": ExecutionMode.CONVERSATIONAL,
+                    "llm_required": False,
+                    "tool_required": False,
+                    "tool": "none",
+                    "reason": "Deterministic conversational medication creation workflow."
                 }
 
         # Determine baseline execution mode assuming LLM is available

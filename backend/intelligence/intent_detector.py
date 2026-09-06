@@ -284,6 +284,35 @@ class IntentDetector:
         ]):
             return "MEDICATION_STATUS"
 
+        # 13b. Medication Creation / Reminder Scheduling Requests
+        med_creation_patterns = [
+            r"\bmy medicine is at\b",
+            r"\bmy medicine at\b",
+            r"\bmedicine is at\b",
+            r"\badd (?:a )?(?:new )?medicine\b",
+            r"\badd (?:a )?(?:new )?medication\b",
+            r"\bcreate (?:a )?(?:new )?medicine\b",
+            r"\bcreate (?:a )?(?:new )?medication\b",
+            r"\bschedule (?:a )?(?:new )?medicine\b",
+            r"\bschedule (?:a )?(?:new )?medication\b",
+            r"\bremind me to take (?:my )?medicine\b",
+            r"\bremind me to take (?:my )?medication\b",
+            r"\bremind me to take (?:my )?pill\b",
+            r"\bremind me to take (?:my )?tablet\b",
+            r"\bset (?:a )?reminder for (?:my )?medicine\b",
+            r"\bset (?:a )?reminder for (?:my )?medication\b",
+            r"\bset (?:a )?medicine reminder\b",
+            r"\bnew medicine\b",
+            r"\bnew medication\b",
+            r"മരുന്ന് ചേർക്കുക",
+            r"മരുന്ന് ചേർക്കൂ",
+            r"പുതിയ മരുന്ന്",
+            r"എന്റെ മരുന്ന്.*?(?:മണിക്കാണ്|മണിക്ക്|ആണ്|ആണു|നാണ്)"
+        ]
+        is_query_phrase = any(w in low for w in ["what", "when", "which", "did i", "have i", "is it", "are all", "how did", "?", "എന്താണ്", "എപ്പോഴാണ്"])
+        if any(re.search(p, low) for p in med_creation_patterns) and not is_query_phrase:
+            return "Medicine"
+
         # 14. Schedule & Open-Ended Medication Query Patterns
         has_med_word = any(w in low for w in ["medicine", "medicines", "medication", "medications", "pill", "pills", "tablet", "tablets", "dose", "മരുന്ന്", "ദവാ", "दवा"])
         has_sched_query = any(w in low for w in [

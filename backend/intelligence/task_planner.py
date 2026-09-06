@@ -40,9 +40,13 @@ class TaskPlanner:
             logger.info(f"[TaskPlanner] Intent '{intent}' identified as an informational query. Ready for response.")
             return True, []
 
-        required = self.REQUIRED_FIELDS.get(intent, [])
+        if intent == "Medicine":
+            required = ["medicine_name", "time"]
+        else:
+            required = self.REQUIRED_FIELDS.get(intent, [])
+
         missing = []
-        
+
         for field in required:
             val = entities.get(field)
             if not val or str(val).lower() == "null" or str(val).strip() == "":

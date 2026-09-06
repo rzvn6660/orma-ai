@@ -460,6 +460,7 @@ export function ReminderProvider({ children }) {
         'reminders_updated'
       ].includes(msg.type)) {
         loadReminders();
+        window.dispatchEvent(new CustomEvent('orma:remindersUpdated', { detail: msg }));
       }
     };
 

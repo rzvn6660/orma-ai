@@ -26,6 +26,60 @@ from intelligence.conversational_reference_resolver import conversational_refere
 
 logger = logging.getLogger(__name__)
 
+def is_affirmative_response(text: str) -> bool:
+    clean = re.sub(r"[^\w\s\u0D00-\u0D7F]", " ", text.lower()).strip()
+    clean = re.sub(r"\s+", " ", clean)
+    affirmative_exact = {
+        "yes", "yep", "yeah", "yup", "confirm", "confirmed", "add it", "add",
+        "save it", "save", "okay", "ok", "sure", "please add", "yes please",
+        "sounds good", "please do", "correct", "right", "alright", "fine",
+        "go ahead", "do it", "add medicine", "confirm and add", "confirm & add",
+        "confirm & add medicine", "confirm and add medicine",
+        # Malayalam
+        "അതെ", "ശരി", "ചേർക്കൂ", "ചേർക്കുക", "സേവ് ചെയ്യുക", "ഉറപ്പാക്കുക", "ഉറപ്പ്",
+        "ആ", "ഓക്കെ", "തീർച്ചയായും", "അതെ ചേർക്കൂ", "ചേർക്കാം", "ആഡ് ചെയ്യ്"
+    }
+    if clean in affirmative_exact:
+        return True
+    if any(clean.startswith(w) for w in ["yes", "confirm", "add it", "save it", "okay", "sure", "അതെ", "ശരി", "ചേർക്കൂ"]):
+        return True
+    return False
+
+def is_negative_response(text: str) -> bool:
+    clean = re.sub(r"[^\w\s\u0D00-\u0D7F]", " ", text.lower()).strip()
+    clean = re.sub(r"\s+", " ", clean)
+    negative_exact = {
+        "no", "nope", "cancel", "cancelled", "stop", "don't add", "dont add",
+        "do not add", "never mind", "nevermind", "no thanks", "reject",
+        # Malayalam
+        "വേണ്ട", "വേണ്ട ഓർമ", "റദ്ദാക്കുക", "ഇല്ല", "വേണ്ട നിർത്തു", "വേണ്ട വേണ്ട"
+    }
+    if clean in negative_exact:
+        return True
+    if any(clean.startswith(w) for w in ["no ", "cancel", "don't ", "dont ", "do not ", "വേണ്ട", "റദ്ദാക്കുക"]):
+        return True
+    return False
+
+def clean_medicine_name(text: str) -> str:
+    cleaned = text.strip().strip(".!?,")
+    prefixes = [
+        r"^(?:the\s+)?medicine\s+is\s+",
+        r"^(?:the\s+)?medicine\s+name\s+is\s+",
+        r"^(?:the\s+)?name\s+of\s+(?:the\s+)?medicine\s+is\s+",
+        r"^(?:the\s+)?name\s+is\s+",
+        r"^it\s+is\s+",
+        r"^it's\s+",
+        r"^its\s+",
+        r"^i\s+take\s+",
+        r"^my\s+medicine\s+is\s+",
+        r"^എന്റെ\s+മരുന്ന്\s+",
+        r"^മരുന്നിന്റെ\s+പേര്\s+",
+        r"^പേര്\s+"
+    ]
+    for p in prefixes:
+        cleaned = re.sub(p, "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned.title() if cleaned.islower() else cleaned
+
 class IntelligenceOrchestrator:
     """
     The central intelligence layer for ORMA AI's Conversational Brain.
@@ -93,7 +147,132 @@ class IntelligenceOrchestrator:
         history = list(conversation_manager.get_history(user_id))
         conversation_manager.add_message(user_id, "user", text)
 
-        # 2b. Conversational Reference & Follow-Up Resolution (Phase A)
+        # 2a. Explicit Pending Medication Confirmation Gate
+        pending_conf = conversation_manager.get_pending_confirmation(user_id)
+        if pending_conf and pending_conf.get("type") == "medicine_creation":
+            med_data = pending_conf.get("data", {})
+            is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+
+            if is_affirmative_response(text):
+                logger.info(f"[ORMA BRAIN req_{req_id}] Medication creation CONFIRMED by user {user_id}. Executing canonical medicine service.")
+                conversation_manager.clear_pending_confirmation(user_id)
+                conversation_manager.clear_current_task(user_id)
+                route_res = await agent_router._route_to_medicine_service("Medicine", med_data, user_id, db)
+                med_name = med_data.get("medicine_name", "your medicine")
+                med_time = med_data.get("time") or med_data.get("reminder_time", "")
+
+                if route_res.get("status") == "success":
+                    response_text = f"{med_name} {med_time}-ന് നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർത്തു കഴിഞ്ഞു." if is_ml else f"I have added {med_name} for {med_time} to your medicines."
+                else:
+                    response_text = f"ക്ഷമിക്കണം, മരുന്ന് ചേർക്കാൻ കഴിഞ്ഞില്ല: {route_res.get('reason')}" if is_ml else f"Sorry, I could not add the medicine: {route_res.get('reason')}"
+
+                conversation_manager.add_message(user_id, "assistant", response_text)
+                t_end = time.perf_counter()
+                return {
+                    "response": response_text,
+                    "intent": "Medicine",
+                    "execution_mode": "CONVERSATIONAL",
+                    "llm_called": False,
+                    "llm_required": False,
+                    "tool_required": True,
+                    "tool_name": "medicine_service",
+                    "language": language,
+                    "gen_meta": {"action": "confirmed_create_medicine", "data": route_res.get("data")},
+                    "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                }
+
+            elif is_negative_response(text):
+                logger.info(f"[ORMA BRAIN req_{req_id}] Medication creation REJECTED/CANCELLED by user {user_id}.")
+                conversation_manager.clear_pending_confirmation(user_id)
+                conversation_manager.clear_current_task(user_id)
+                response_text = "ശരി, മരുന്ന് ചേർക്കുന്നത് ഞാൻ ഒഴിവാക്കിയിട്ടുണ്ട്." if is_ml else "Alright, I have cancelled adding this medicine."
+
+                conversation_manager.add_message(user_id, "assistant", response_text)
+                t_end = time.perf_counter()
+                return {
+                    "response": response_text,
+                    "intent": "Medicine",
+                    "execution_mode": "CONVERSATIONAL",
+                    "llm_called": False,
+                    "llm_required": False,
+                    "tool_required": False,
+                    "tool_name": "none",
+                    "language": language,
+                    "gen_meta": {"action": "cancelled_create_medicine"},
+                    "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                }
+            else:
+                med_name = med_data.get("medicine_name", "the medicine")
+                med_time = med_data.get("time") or med_data.get("reminder_time", "")
+                response_text = f"ഞാൻ {med_name} {med_time}-ന് നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർക്കണോ? ദയവായി 'അതെ' എന്നോ 'വേണ്ട' എന്നോ പറയുക." if is_ml else f"Would you like me to add {med_name} scheduled for {med_time} to your medicines? Please confirm or cancel."
+                conversation_manager.add_message(user_id, "assistant", response_text)
+                t_end = time.perf_counter()
+                return {
+                    "response": response_text,
+                    "intent": "Medicine",
+                    "execution_mode": "CONVERSATIONAL",
+                    "llm_called": False,
+                    "llm_required": False,
+                    "tool_required": False,
+                    "tool_name": "none",
+                    "language": language,
+                    "gen_meta": {"action": "clarify_pending_confirmation"},
+                    "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                }
+
+        # 2b. Multi-turn Missing Information Collection (Medication Clarification Turn 2)
+        active_task = conversation_manager.get_current_task(user_id)
+        missing_info = conversation_manager.get_missing_info(user_id)
+        if active_task == "Medicine" and "medicine_name" in missing_info:
+            is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+            if is_negative_response(text):
+                conversation_manager.clear_current_task(user_id)
+                response_text = "ശരി, റദ്ദാക്കിയിട്ടുണ്ട്." if is_ml else "Alright, cancelled."
+                conversation_manager.add_message(user_id, "assistant", response_text)
+                t_end = time.perf_counter()
+                return {
+                    "response": response_text,
+                    "intent": "Medicine",
+                    "execution_mode": "CONVERSATIONAL",
+                    "llm_called": False,
+                    "llm_required": False,
+                    "tool_required": False,
+                    "tool_name": "none",
+                    "language": language,
+                    "gen_meta": {"action": "cancelled_task"},
+                    "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                }
+            else:
+                med_name = clean_medicine_name(text)
+                if med_name:
+                    conversation_manager.save_entities(user_id, {"medicine_name": med_name})
+                    all_entities = conversation_manager.get_entities(user_id)
+                    is_ready, task_missing = task_planner.evaluate_task_readiness("Medicine", all_entities, raw_text=text)
+                    if is_ready:
+                        # Required fields complete! Present confirmation summary and enter pending confirmation. DO NOT create DB record yet!
+                        conversation_manager.set_pending_confirmation(user_id, "medicine_creation", all_entities)
+                        med_time = all_entities.get("time", "8:00 PM")
+                        freq = all_entities.get("frequency", "once daily")
+                        if is_ml:
+                            response_text = f"ഞാൻ {med_name} {med_time}-ന് ദിവസത്തിൽ ഒരിക്കൽ ഷെഡ്യൂൾ ചെയ്തിട്ടുണ്ട്. ഇത് നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർക്കണോ?"
+                        else:
+                            response_text = f"I have {med_name} scheduled for {med_time} once daily. Would you like me to add this to your medicines?"
+                        conversation_manager.add_message(user_id, "assistant", response_text)
+                        t_end = time.perf_counter()
+                        return {
+                            "response": response_text,
+                            "intent": "Medicine",
+                            "execution_mode": "CONVERSATIONAL",
+                            "llm_called": False,
+                            "llm_required": False,
+                            "tool_required": False,
+                            "tool_name": "none",
+                            "language": language,
+                            "gen_meta": {"action": "pending_confirmation", "pending_data": all_entities},
+                            "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                        }
+
+        # 2c. Conversational Reference & Follow-Up Resolution (Phase A)
         followup_res = conversational_reference_resolver.resolve(
             text=text,
             user_id=user_id,
@@ -398,6 +577,49 @@ class IntelligenceOrchestrator:
             logger.info(f"[ORMA BRAIN req_{req_id}] Executing FALLBACK mode because LLM provider is unavailable")
             t6 = t5
             t7 = t6
+            if intent == "Medicine" and all_entities.get("action") == "create":
+                is_ready, task_missing = task_planner.evaluate_task_readiness(intent, all_entities, raw_text=text)
+                decision, reason, val_missing = safety_validator.validate(intent, all_entities, raw_text=text)
+                missing_fields = list(set(task_missing + val_missing))
+                if not is_ready:
+                    conversation_manager.set_current_task(user_id, "Medicine")
+                    conversation_manager.update_missing_info(user_id, missing_fields)
+                    is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+                    response_text = "ഏതാണ് മരുന്നിന്റെ പേര്?" if is_ml else "What is the name of the medicine?"
+                    conversation_manager.add_message(user_id, "assistant", response_text)
+                    t_end = time.perf_counter()
+                    return {
+                        "response": response_text,
+                        "intent": "Medicine",
+                        "execution_mode": "CONVERSATIONAL",
+                        "llm_called": False,
+                        "llm_required": False,
+                        "tool_required": False,
+                        "tool_name": "none",
+                        "language": language,
+                        "gen_meta": {"action": "clarify"},
+                        "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                    }
+                else:
+                    conversation_manager.set_pending_confirmation(user_id, "medicine_creation", all_entities)
+                    med_name = all_entities.get("medicine_name", "your medicine")
+                    med_time = all_entities.get("time", "8:00 PM")
+                    is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+                    response_text = f"ഞാൻ {med_name} {med_time}-ന് ദിവസത്തിൽ ഒരിക്കൽ ഷെഡ്യൂൾ ചെയ്തിട്ടുണ്ട്. ഇത് നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർക്കണോ?" if is_ml else f"I have {med_name} scheduled for {med_time} once daily. Would you like me to add this to your medicines?"
+                    conversation_manager.add_message(user_id, "assistant", response_text)
+                    t_end = time.perf_counter()
+                    return {
+                        "response": response_text,
+                        "intent": "Medicine",
+                        "execution_mode": "CONVERSATIONAL",
+                        "llm_called": False,
+                        "llm_required": False,
+                        "tool_required": False,
+                        "tool_name": "none",
+                        "language": language,
+                        "gen_meta": {"action": "pending_confirmation", "pending_data": all_entities},
+                        "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                    }
             if selected_tool_name == "medication_status":
                 meds = tool_result.get("medications", [])
                 pending = [m for m in meds if m.get("status") != "TAKEN"]
@@ -457,6 +679,38 @@ class IntelligenceOrchestrator:
             elif not is_ready and decision == "Continue":
                 decision = "Clarify"
                 reason = f"Task Planner requires more information: {', '.join(missing_fields)}"
+
+            # Conversational medication creation handling
+            if intent == "Medicine" and all_entities.get("action") == "create":
+                if decision == "Clarify":
+                    conversation_manager.set_current_task(user_id, "Medicine")
+                    conversation_manager.update_missing_info(user_id, missing_fields)
+                elif decision == "Continue" and is_ready:
+                    # Both medicine_name and time are present!
+                    # Do NOT create database record yet. Present confirmation summary and enter pending confirmation.
+                    conversation_manager.set_pending_confirmation(user_id, "medicine_creation", all_entities)
+                    med_name = all_entities.get("medicine_name", "your medicine")
+                    med_time = all_entities.get("time", "8:00 PM")
+                    freq = all_entities.get("frequency", "once daily")
+                    is_ml = (language and language.lower().startswith("ml")) or bool(re.search(r"[\u0D00-\u0D7F]", text))
+                    if is_ml:
+                        response_text = f"ഞാൻ {med_name} {med_time}-ന് ദിവസത്തിൽ ഒരിക്കൽ ഷെഡ്യൂൾ ചെയ്തിട്ടുണ്ട്. ഇത് നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർക്കണോ?"
+                    else:
+                        response_text = f"I have {med_name} scheduled for {med_time} once daily. Would you like me to add this to your medicines?"
+                    conversation_manager.add_message(user_id, "assistant", response_text)
+                    t_end = time.perf_counter()
+                    return {
+                        "response": response_text,
+                        "intent": "Medicine",
+                        "execution_mode": "CONVERSATIONAL",
+                        "llm_called": False,
+                        "llm_required": False,
+                        "tool_required": False,
+                        "tool_name": "none",
+                        "language": language,
+                        "gen_meta": {"action": "pending_confirmation", "pending_data": all_entities},
+                        "timestamps": {k: t_end for k in ["T0", "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"]}
+                    }
 
             route_result = None
             if decision == "Continue":

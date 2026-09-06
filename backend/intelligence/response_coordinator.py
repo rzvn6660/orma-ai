@@ -61,6 +61,15 @@ class ResponseCoordinator:
 
         # 1. Handle Clarification
         if validation_decision == "Clarify":
+            if "medicine_name" in missing_fields:
+                if language and language.lower().startswith("ml"):
+                    return "ഏതാണ് മരുന്നിന്റെ പേര്?", {"llm_called": False, "provider": "deterministic"}
+                return "What is the name of the medicine?", {"llm_called": False, "provider": "deterministic"}
+            elif "time" in missing_fields and intent == "Medicine":
+                if language and language.lower().startswith("ml"):
+                    return "ഏത് സമയത്താണ് ഈ മരുന്ന് കഴിക്കേണ്ടത്?", {"llm_called": False, "provider": "deterministic"}
+                return "What time should this medicine be scheduled for?", {"llm_called": False, "provider": "deterministic"}
+
             fields_str = ", ".join(missing_fields)
             prompt = (
                 "You are an AI assistant for elderly users. The user wanted to complete a task, "
@@ -88,7 +97,15 @@ class ResponseCoordinator:
             if follow_up:
                 prompt_context += f" Suggest this follow up to the user naturally: {follow_up}"
 
-            if action == "created_health_event":
+            if action == "created_medicine_reminder":
+                med_name = data.get("medicine_name", "your medicine")
+                time_str = data.get("reminder_time", "")
+                time_part = f" for {time_str}" if time_str else ""
+                if language and language.lower().startswith("ml"):
+                    time_part_ml = f" {time_str}-ന്" if time_str else ""
+                    return f"{med_name}{time_part_ml} നിങ്ങളുടെ മരുന്നുകളിലേക്ക് ചേർത്തു കഴിഞ്ഞു.", {"llm_called": False, "provider": "deterministic"}
+                return f"I have added {med_name}{time_part} to your medicines.", {"llm_called": False, "provider": "deterministic"}
+            elif action == "created_health_event":
                 title = data.get("title", "event")
                 return f"Okay, I have scheduled {title} for you. {follow_up}".strip(), {"llm_called": False, "provider": "deterministic"}
             elif action == "emergency_alert_sent":

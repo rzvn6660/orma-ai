@@ -9,7 +9,7 @@ from ai.adherence_service import calculate_confidence_score
 # Pydantic models for request/response
 class ReminderCreate(BaseModel):
     medicine_name: str
-    dosage: str
+    dosage: Optional[str] = ""
     reminder_time: str
     purpose: Optional[str] = None
     frequency: Optional[str] = None

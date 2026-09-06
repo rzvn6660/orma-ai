@@ -19,9 +19,29 @@ class ConversationManager:
                 "history": [],
                 "current_task": None,
                 "missing_info": [],
-                "entities": {}
+                "entities": {},
+                "pending_confirmation": None
             }
         return self.sessions[user_id]
+
+    def set_pending_confirmation(self, user_id: str, confirmation_type: str, data: dict):
+        """Sets an explicit pending confirmation state for user action (e.g. medication creation)."""
+        session = self._get_or_create_session(user_id)
+        session["pending_confirmation"] = {
+            "type": confirmation_type,
+            "data": data
+        }
+        logger.info(f"[ConversationManager] Set pending confirmation '{confirmation_type}' for user {user_id}")
+
+    def get_pending_confirmation(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves active pending confirmation state."""
+        return self._get_or_create_session(user_id).get("pending_confirmation")
+
+    def clear_pending_confirmation(self, user_id: str):
+        """Clears active pending confirmation state."""
+        session = self._get_or_create_session(user_id)
+        session["pending_confirmation"] = None
+        logger.info(f"[ConversationManager] Cleared pending confirmation for user {user_id}")
 
     def add_message(self, user_id: str, role: str, content: str):
         """Adds a message to the conversation history."""
@@ -51,6 +71,7 @@ class ConversationManager:
         session["current_task"] = None
         session["missing_info"] = []
         session["entities"] = {}
+        session["pending_confirmation"] = None
         logger.info(f"[ConversationManager] Cleared task for user {user_id}")
 
     def update_missing_info(self, user_id: str, missing_keys: list):

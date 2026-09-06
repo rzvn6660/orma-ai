@@ -43,12 +43,13 @@ class AgentRouter:
         ]
 
         if intent in medication_chat_intents:
-            if is_query or entities.get("action") != "create":
+            is_create = entities.get("action") == "create"
+            if is_query or not is_create:
                 return self._build_explainable_payload(
                     status="success", action="chat", data=None,
                     reason=f"Medication intent '{intent}' routed to conversational chat coordinator.", confidence=0.95
                 )
-            return await self._route_to_health_planner(intent, entities, user_id, db, event_type="medicine")
+            return await self._route_to_medicine_service(intent, entities, user_id, db)
             
         elif intent == "Appointment":
             if is_query or entities.get("action") != "create":
@@ -80,6 +81,82 @@ class AgentRouter:
             return self._build_explainable_payload(
                 status="success", action="chat", data=None,
                 reason=f"Intent {intent} routed to default chat coordinator.", confidence=0.8
+            )
+
+    async def _route_to_medicine_service(self, intent: str, entities: Dict[str, Any], user_id: str, db: Session) -> Dict[str, Any]:
+        from services.medicine_service import create_reminder, ReminderCreate
+        from routes.medicine import broadcast_medicine_event
+        from models.user import User
+
+        medicine_name = entities.get("medicine_name") or entities.get("title") or "Medicine"
+        reminder_time = entities.get("time") or entities.get("reminder_time") or "08:00 PM"
+        dosage = entities.get("dosage") or ""
+        frequency = entities.get("frequency") or "Once Daily"
+        purpose = entities.get("purpose")
+        notes = entities.get("notes")
+
+        # Resolve user context
+        user_obj = db.query(User).filter(User.id == str(user_id)).first()
+        if not user_obj and str(user_id).isdigit():
+            user_obj = db.query(User).filter(User.id == int(user_id)).first()
+        tz_name = (user_obj.timezone if user_obj and user_obj.timezone else "UTC").strip()
+        role = user_obj.role if user_obj and hasattr(user_obj, "role") else "elderly"
+        subject_id = str(user_id)
+
+        reminder_data = ReminderCreate(
+            medicine_name=medicine_name,
+            dosage=dosage,
+            reminder_time=reminder_time,
+            frequency=frequency,
+            purpose=purpose,
+            notes=notes,
+            timezone=tz_name
+        )
+
+        try:
+            new_reminder = create_reminder(
+                db=db,
+                reminder=reminder_data,
+                actor_id=subject_id,
+                subject_id=subject_id,
+                role=role
+            )
+            logger.info(f"[AgentRouter] Successfully routed to MedicineService. Created MedicineReminder ID: {new_reminder.id}")
+
+            # Broadcast real-time websocket event
+            try:
+                await broadcast_medicine_event(db, subject_id, {
+                    "type": "medicine_created",
+                    "medicine_id": new_reminder.id,
+                    "medicine_name": new_reminder.medicine_name,
+                    "reminder_time": new_reminder.reminder_time,
+                    "message": f"New medicine {new_reminder.medicine_name} scheduled for {new_reminder.reminder_time}."
+                })
+            except Exception as ws_err:
+                logger.warning(f"[AgentRouter] WebSocket broadcast warning: {ws_err}")
+
+            return self._build_explainable_payload(
+                status="success",
+                action="created_medicine_reminder",
+                data={
+                    "id": new_reminder.id,
+                    "medicine_name": new_reminder.medicine_name,
+                    "reminder_time": new_reminder.reminder_time,
+                    "frequency": new_reminder.frequency,
+                    "dosage": new_reminder.dosage
+                },
+                reason=f"Successfully created canonical MedicineReminder for {medicine_name} at {reminder_time}.",
+                confidence=0.95,
+                memory_updates=[f"User has {medicine_name} scheduled at {reminder_time}"]
+            )
+        except Exception as e:
+            logger.error(f"[AgentRouter] Failed to create MedicineReminder: {e}")
+            return self._build_explainable_payload(
+                status="error",
+                action="error",
+                data=None,
+                reason=f"Database or medicine service error: {e}",
+                confidence=1.0
             )
 
     async def _route_to_health_planner(self, intent: str, entities: Dict[str, Any], user_id: str, db: Session, event_type: str) -> Dict[str, Any]:

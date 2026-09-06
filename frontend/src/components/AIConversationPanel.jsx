@@ -11,7 +11,9 @@ import {
   Send,
   PhoneOff,
   Mic,
-  Square
+  Square,
+  Check,
+  X
 } from 'lucide-react';
 import { tts } from '../services/tts';
 import AICompanionOrb from './AICompanionOrb';
@@ -276,6 +278,31 @@ export default function AIConversationPanel({
                     >
                       {msg.text}
                     </p>
+
+                    {Boolean(
+                      msg.text &&
+                      (msg.text.includes("add this to your medicines?") || msg.text.includes("ചേർക്കണോ?")) &&
+                      idx === messages.length - 1
+                    ) && (
+                      <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center gap-2.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleSuggestionClick("Confirm & Add Medicine")}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Confirm & Add Medicine</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSuggestionClick("Cancel")}
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/15 text-slate-300 hover:text-white text-xs font-semibold transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Cancel</span>
+                        </button>
+                      </div>
+                    )}
 
                     {showVoiceWarning && (
                       <div className="mt-2.5 p-2 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 text-xs flex items-center gap-2">
