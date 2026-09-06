@@ -36,6 +36,7 @@ export default function CaregiverLinkManager({ user }) {
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [timeLeft, setTimeLeft] = useState('');
+  const [connectedCaregiverNotice, setConnectedCaregiverNotice] = useState(null);
 
   // Confirmation Modal state
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, target: null, type: null, loading: false });
@@ -90,6 +91,13 @@ export default function CaregiverLinkManager({ user }) {
       ];
       
       if (relevantTypes.includes(data.type)) {
+        if (data.type === 'pending_request_approved' || data.type === 'caregiver_linked') {
+          setGeneratedCode(null);
+          setTimeLeft('');
+          if (data.caregiver_name) {
+            setConnectedCaregiverNotice({ name: data.caregiver_name });
+          }
+        }
         loadLinkedUsers();
       }
     };
@@ -240,10 +248,19 @@ export default function CaregiverLinkManager({ user }) {
   };
 
   const handleApprove = async (targetId) => {
+    const targetUser = pendingRequests.find(u => u.id === targetId);
+    const targetName = targetUser?.name || 'Caregiver';
     try {
       await linkApi.approveRequest(targetId);
+      // Immediately hide/remove the temporary generated connection code
+      setGeneratedCode(null);
+      setTimeLeft('');
+      setConnectedCaregiverNotice({ name: targetName });
       loadLinkedUsers();
-      setMessage({ text: 'Caregiver request approved.', type: 'success' });
+      setMessage({ 
+        text: `Caregiver connected successfully! ${targetName} is now authorized to access your care information.`, 
+        type: 'success' 
+      });
     } catch (err) {
       setMessage({ text: err.response?.data?.detail || 'Failed to approve request.', type: 'error' });
     }
@@ -282,25 +299,58 @@ export default function CaregiverLinkManager({ user }) {
 
         {isElderly ? (
           <div className="flex flex-col gap-6">
-            {/* 1. GRANT CAREGIVER ACCESS (CODE GENERATION & SHOWCASE) */}
+            {/* CONNECTED CAREGIVER SUCCESS NOTICE */}
+            {connectedCaregiverNotice && (
+              <motion.div 
+                initial={{ opacity: 0, y: -6 }} 
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-start justify-between gap-3 text-emerald-300 shadow-lg"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-emerald-300">Caregiver connected successfully</p>
+                    <p className="text-xs text-emerald-400/90 mt-0.5">
+                      <strong className="text-white">{connectedCaregiverNotice.name}</strong> is now authorized to access your care information.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConnectedCaregiverNotice(null)}
+                  className="text-emerald-400/60 hover:text-emerald-300 p-1 cursor-pointer transition-colors"
+                  aria-label="Dismiss notice"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {/* 1. GRANT CAREGIVER ACCESS (COMPACT CODE GENERATION & SHOWCASE) */}
             <motion.div 
               initial={{ opacity: 0, y: 10 }} 
               animate={{ opacity: 1, y: 0 }} 
-              className="p-5 sm:p-6 rounded-2xl bg-slate-800/40 border border-indigo-500/30 space-y-4 shadow-xl overflow-visible"
+              className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-indigo-500/30 space-y-3.5 shadow-xl overflow-visible"
             >
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                    <Key className="w-5 h-5" />
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <Key className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Grant Caregiver Access</h3>
-                    <p className="text-xs text-slate-400">Allow a trusted family member or caregiver to link with your account.</p>
+                    <h3 className="text-sm sm:text-base font-bold text-white">Grant Caregiver Access</h3>
+                    <p className="text-[11px] text-slate-400">
+                      {linkedUsers.length > 0
+                        ? "Link an additional family member or caregiver to your account."
+                        : "Allow a trusted family member or caregiver to link with your account."}
+                    </p>
                   </div>
                 </div>
 
                 {generatedCode?.code && timeLeft && (
-                  <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border ${
+                  <span className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${
                     timeLeft === 'Expired'
                       ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
                       : 'text-indigo-300 bg-indigo-500/20 border-indigo-500/30 shadow-sm'
@@ -312,125 +362,105 @@ export default function CaregiverLinkManager({ user }) {
               </div>
 
               {generatedCode?.code ? (
-                <div className="space-y-4 pt-1">
-                  {/* PROMINENT CODE DISPLAY BOX */}
-                  <div className="bg-slate-900/90 p-5 sm:p-6 rounded-2xl border border-indigo-500/40 text-center shadow-2xl relative">
-                    <p className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-widest mb-2">
-                      Your Secure Connection Code
-                    </p>
-                    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 my-2">
-                      <span className="text-3xl sm:text-4xl md:text-5xl font-mono font-black text-white tracking-[0.2em] sm:tracking-[0.25em] drop-shadow-md select-all">
-                        {generatedCode.code}
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={handleCopyCode}
-                        className={`py-2.5 px-4 rounded-xl border font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
-                          copied 
-                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-md shadow-emerald-500/20' 
-                            : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border-indigo-500/40 hover:text-white'
-                        }`}
-                        title="Copy Code"
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4 text-emerald-400" />
-                            <span>Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span>Copy Code</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {generatedCode.expiresAt && (
-                      <div className="text-xs text-slate-400 mt-2 flex flex-wrap items-center justify-center gap-2">
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Valid for 15 minutes • Expires at {formatExpiryTime(generatedCode.expiresAt)}</span>
-                        </span>
-                        {timeLeft && (
-                          <span className={`font-bold px-2.5 py-0.5 rounded-full border text-[11px] ${
-                            timeLeft === 'Expired' 
-                              ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' 
-                              : 'text-indigo-300 bg-indigo-500/20 border-indigo-500/30'
-                          }`}>
-                            {timeLeft === 'Expired' ? 'Code Expired' : `Expires in ${timeLeft}`}
+                <div className="space-y-3 pt-1">
+                  {/* COMPACT PROMINENT CODE BOX */}
+                  <div className="bg-slate-900/80 p-4 sm:p-5 rounded-xl border border-indigo-500/40 shadow-xl space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                      <div>
+                        <p className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-widest">
+                          Your Secure Connection Code
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 mt-1">
+                          <span className="text-2xl sm:text-3xl md:text-4xl font-mono font-black text-white tracking-[0.18em] sm:tracking-[0.22em] drop-shadow select-all">
+                            {generatedCode.code}
                           </span>
-                        )}
+                          <button 
+                            type="button"
+                            onClick={handleCopyCode}
+                            className={`py-1.5 sm:py-2 px-3 sm:px-3.5 rounded-lg border font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                              copied 
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-md shadow-emerald-500/20' 
+                                : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border-indigo-500/40 hover:text-white'
+                            }`}
+                            title="Copy Code"
+                          >
+                            {copied ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy Code</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* ACTION AND STEP GUIDE */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-                    <button 
-                      type="button"
-                      onClick={handleGenerateCode} 
-                      disabled={loading} 
-                      className="py-2.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Generating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Key className="w-4 h-4 text-indigo-400" />
-                          <span>Generate New Code</span>
-                        </>
-                      )}
-                    </button>
-                    <p className="text-[11px] text-slate-400 italic text-center sm:text-right">
-                      Generating a new code immediately invalidates previous codes.
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs space-y-2 text-slate-300">
-                    <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
-                      <Info className="w-4 h-4 text-indigo-400 shrink-0" />
-                      <span>How your caregiver connects:</span>
+                      <div className="flex flex-row sm:flex-col items-start sm:items-end justify-between sm:justify-center gap-1.5 pt-1 sm:pt-0">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                          <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                          <span>Expires at {formatExpiryTime(generatedCode.expiresAt)}</span>
+                          {timeLeft && (
+                            <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] border ${
+                              timeLeft === 'Expired'
+                                ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                                : 'text-indigo-300 bg-indigo-500/20 border-indigo-500/30'
+                            }`}>
+                              {timeLeft === 'Expired' ? 'Expired' : timeLeft}
+                            </span>
+                          )}
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={handleGenerateCode} 
+                          disabled={loading} 
+                          className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-2 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        >
+                          <Key className="w-3 h-3" />
+                          <span>{loading ? "Generating..." : "Generate New Code"}</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-slate-400 pt-1">
-                      <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/40">
-                        <strong className="text-white block mb-0.5">1. Share Code</strong>
-                        Give <span className="font-mono text-indigo-300 font-bold">{generatedCode.code}</span> to your caregiver.
-                      </div>
-                      <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/40">
-                        <strong className="text-white block mb-0.5">2. They Connect</strong>
-                        They open ORMA → Settings → Family Connections.
-                      </div>
-                      <div className="bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/40">
-                        <strong className="text-white block mb-0.5">3. You Approve</strong>
-                        Their request appears below for your confirmation.
-                      </div>
+
+                    {/* CONCISE CAREGIVER INSTRUCTIONS */}
+                    <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/40 px-3 py-2 rounded-lg border border-slate-700/40">
+                      <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <p className="leading-snug">
+                        Caregiver enters this code under <strong className="text-slate-200">Settings → Family Connections</strong>. Once submitted, your approval prompt appears below.
+                      </p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 pt-1">
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Generate a secure, single-use 8-character connection code (formatted as ABCD-1234). Share this code with a family member or caregiver so they can link to your profile and assist with your care.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+                  <div className="space-y-0.5 max-w-xl">
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {linkedUsers.length > 0 
+                        ? "Need to connect another family member or caregiver? Generate a single-use connection code formatted as ABCD-1234."
+                        : "Generate a secure, single-use 8-character connection code (formatted as ABCD-1234) for your trusted caregiver."}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Codes are valid for 15 minutes and require your confirmation before caregiver access begins.
+                    </p>
+                  </div>
                   <button 
                     type="button"
                     onClick={handleGenerateCode} 
                     disabled={loading} 
-                    className="py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 disabled:opacity-50"
+                    className="py-2.5 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 shrink-0 disabled:opacity-50"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Generating Code...</span>
+                        <span>Generating...</span>
                       </>
                     ) : (
                       <>
                         <Key className="w-4 h-4" />
-                        <span>Generate Connection Code</span>
+                        <span>{linkedUsers.length > 0 ? "Generate Another Code" : "Generate Connection Code"}</span>
                       </>
                     )}
                   </button>
