@@ -103,15 +103,31 @@ ORMA AI uses a robust authentication flow built directly into the application:
 
 ORMA is designed around a simple interaction: speak naturally → ORMA understands → ORMA responds or takes action.
 
-### 1. Talk Naturally
-Users can interact with ORMA through hands-free voice and conversational input, removing the barrier of complex smartphone navigation.
+### Product Overview
+ORMA provides a focused, accessible interface designed specifically for elderly users to manage their daily care.
 
-![Voice Conversation Start](docs/screenshots/04-voice-conversation-start.png)
+![Landing Page](docs/screenshots/01-landing-page.png)
+
+### Secure Access
+A polished and secure entry experience utilizing email verification and password authentication.
+
+![Login Page](docs/screenshots/02-login-page.png)
+
+### 1. Talk Naturally
+Users can interact with ORMA through hands-free voice and conversational input. The system seamlessly transcribes queries and returns useful, contextual responses.
+
+<div align="center">
+  <img src="docs/screenshots/04-voice-conversation-start.png" alt="Voice Conversation Start" width="48%" />
+  <img src="docs/screenshots/05-voice-medication-response.png" alt="Voice Medication Response" width="48%" />
+</div>
 
 ### 2. Manage Daily Health
-Users can easily view and manage their active medicines, daily schedules, and overall medication status.
+The dedicated health workspace fits perfectly into the user's daily routine, providing an organized view of their active medicines and schedules.
 
-![Medicines](docs/screenshots/06-medicines.png)
+<div align="center">
+  <img src="docs/screenshots/03-home-dashboard.png" alt="Home Dashboard" width="48%" />
+  <img src="docs/screenshots/06-medicines.png" alt="Medicines" width="48%" />
+</div>
 
 ### 3. Stay on Track
 The system provides a clear reminder and medication confirmation experience to help users adhere to their prescribed schedules.
@@ -119,7 +135,7 @@ The system provides a clear reminder and medication confirmation experience to h
 ![Reminders and Notifications](docs/screenshots/07-reminders-notifications.png)
 
 ### 4. Safety & Emergency Support
-ORMA provides a dedicated emergency-support area with configured emergency actions and trusted contact information.
+ORMA provides a dedicated emergency-support area configured with trusted contact information and rapid-access actions.
 
 ![Emergency Support](docs/screenshots/08-emergency-support.png)
 
@@ -128,10 +144,20 @@ The caregiver flow is simple and secure: the elderly user generates a secure con
 
 ![Caregiver Dashboard](docs/screenshots/09-care-taker.png)
 
-### Mobile Experience
-ORMA's core experience adapts seamlessly across iPhone, Android, and iPad interfaces.
+### Mobile Entry Experience
+The mobile entry experience carries the ORMA visual language securely across phone and tablet form factors.
 
-![Mobile ORMA Home](docs/screenshots/Mobile ORMA home.png)
+<div align="center">
+  <img src="docs/screenshots/Mobile overviewscreens.png" alt="Mobile Overview" width="48%" />
+  <img src="docs/screenshots/Mobile login screens.png" alt="Mobile Login" width="48%" />
+</div>
+
+### Mobile ORMA Experience
+The core application experience adapts seamlessly across mobile and tablet interfaces, preserving accessibility and ease of use.
+
+<div align="center">
+  <img src="docs/screenshots/Mobile ORMA home.png" alt="Mobile ORMA Home" width="75%" />
+</div>
 
 ---
 
