@@ -12,7 +12,7 @@
 
 - **Live Demo**: [https://app-orma-ai.onrender.com](https://app-orma-ai.onrender.com)
 - **Backend API**: [https://orma-ai.onrender.com](https://orma-ai.onrender.com)
-- **Interactive API Docs**: [https://orma-ai.onrender.com/docs](https://orma-ai.onrender.com/docs)
+- **API Documentation**: [https://orma-ai.onrender.com/docs](https://orma-ai.onrender.com/docs)
 
 ---
 
