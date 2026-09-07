@@ -1,6 +1,6 @@
-# ORMA AI
+![ORMA AI](docs/screenshots/banner.png)
 
-> **Voice-First AI Memory & Daily-Living Assistant for Older Adults and Caregivers**
+> **ORMA AI — AI-powered care, memory, reminders, and family connection for older adults.**
 
 [![CI Pipeline](https://github.com/rzvn6660/orma-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/rzvn6660/orma-ai/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-v0.1.0--beta.1-blue.svg)](CHANGELOG.md)
@@ -8,7 +8,6 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 - **Live Demo**: [https://app-orma-ai.onrender.com](https://app-orma-ai.onrender.com)
@@ -17,188 +16,151 @@
 
 ---
 
-## Overview
+## What is ORMA AI?
 
-As individuals age, managing daily routines, remembering complex medication schedules, and navigating smartphone user interfaces can introduce significant cognitive fatigue. Traditional healthcare apps rely heavily on small touch targets, multi-step navigation menus, and manual text inputs that often create barriers for elderly users. At the same time, family members and caregivers need dependable visibility into daily adherence without eroding the older adult's independence.
+As individuals age, managing daily routines, complex medication schedules, and navigating smartphone UI interfaces can introduce cognitive fatigue. Traditional healthcare apps rely on small touch targets and complex navigation that create barriers for elderly users, while caregivers need dependable visibility without eroding the older adult's independence.
 
-**ORMA AI** is engineered as a voice-first healthcare companion that bridges natural human dialogue with deterministic medical safety. Older adults can simply speak naturally—inquiring about upcoming medicines, confirming intake through conversational phrases (*"I took it"*), recalling personal memories, or triggering life-safety assistance. Behind the conversation layer, an authoritative backend maintains schedule integrity, coordinates multi-turn context, and escalates missed doses to linked caregivers.
-
----
-
-## Key Features
-
-- **Voice Conversation**: Hands-free, low-latency audio interaction supporting both push-to-talk and conversational modes.
-- **English-First Production Voice Pipeline**: Validated end-to-end voice transcription, intent parsing, and natural speech synthesis.
-- **Beta Multilingual Voice Support**: Beta voice recognition and response generation for Malayalam, Tamil, Hindi, and Manglish with automated script detection and phonetic recovery heuristics.
-- **Medication Reminders**: Timezone-aware daily, weekly, and interval scheduling with minute-by-minute automated evaluation.
-- **Medication Adherence Confirmation**: Supports both natural voice confirmations (*"I already took my morning pill"*, *"I took it"*) and direct UI actions.
-- **Conversational Context & Pronoun Resolution**: Multi-turn reference resolver that identifies pronouns and contextual references (*"it"*, *"that medicine"*) from recent dialogue history.
-- **AI Memory (OCME)**: Context-aware personal memory extraction and grounded recall that safely stores and retrieves personal facts and preferences.
-- **Deterministic Emergency Support**: Safety-critical phrases (*"Help me"*, *"I fell down"*, *"Call my caregiver"*) bypass LLM inference latency to trigger immediate alerts and reassuring responses.
-- **Caregiver Dashboard & Linking**: Role-based access control with secure pairing codes and authorization workflows.
-- **Caregiver Notifications & Escalation**: In-app alerts, browser notifications, and automated escalation when a critical dose remains unconfirmed past the 30-minute threshold.
-- **Medical Document Storage & RAG**: Secure document ingestion for prescriptions and discharge summaries with text extraction and grounded question-answering.
-- **Speech-to-Text (ASR) & Text-to-Speech (TTS)**: Built-in audio preprocessing pipeline (WebM/Opus decoding to normalized 16 kHz 16-bit mono PCM WAV) paired with Whisper ASR and multilingual TTS synthesis.
+ORMA AI is a voice-first healthcare companion that bridges natural human dialogue with deterministic medical safety. Older adults can speak naturally—inquiring about medicines, confirming intake, recalling personal memories, or triggering life-safety assistance. An authoritative backend maintains schedule integrity, context, and escalates critical missed events to linked caregivers.
 
 ---
 
-## Architecture
+## Key Capabilities
 
-The diagram below illustrates the end-to-end flow from user audio to authoritative service execution:
+- **Voice-First Interaction**: Hands-free, low-latency audio interaction supporting natural conversational queries.
+- **Medication Reminders and Adherence**: Timezone-aware scheduling with adherence tracking via voice confirmations (*"I took it"*) or direct UI actions.
+- **AI Memory Assistance (OCME)**: Context-aware personal memory extraction and grounded recall that safely retrieves personal facts and preferences.
+- **Emergency Support**: Deterministic keyword detection (*"Help me"*) bypasses generative latency to immediately trigger emergency alerts.
+- **Multilingual Voice Support (Beta)**: Beta recognition and response generation for languages like Malayalam, Tamil, Hindi, and Arabic with Right-to-Left (RTL) interface adaptation.
+- **Caregiver & Family Connection**: Role-based access control linking elderly profiles with trusted caregivers for routine visibility and alerts.
+- **Notifications**: Automated escalation when critical medication remains unconfirmed past the safe threshold.
+- **Authentication & Account Security**: Secure email verification using the Gmail API, password resets, and complete data isolation.
+- **RAG/Document Support**: Secure ingestion of medical documents with text extraction and grounded question-answering.
 
-```mermaid
-graph TD
-    User["Elderly User (Voice / Touch)"]
-    Caregiver["Caregiver (Web Portal)"]
+---
 
-    subgraph Client ["Frontend Client (React 19 + Vite)"]
-        UI["High-Contrast WCAG-Friendly UI"]
-        AudioRecorder["Audio Capture (WebM/Opus)"]
-        TTSClient["Audio Playback & TTS Engine"]
-        StorageUtil["Local Read-State Storage"]
-    end
+## System Architecture
 
-    subgraph BackendGateway ["Backend Gateway (FastAPI)"]
-        APIRoutes["FastAPI Endpoint Routers (/api)"]
-        AuthMiddleware["JWT Auth & Tenant Isolation"]
-    end
+![ORMA AI Architecture](docs/screenshots/ormaarchitecture.png)
 
-    subgraph SpeechPipeline ["Speech Processing Engine"]
-        AudioPrep["Audio Preprocessor (PyAV 16kHz PCM WAV)"]
-        WhisperASR["Whisper ASR (Groq Turbo / Large-v3)"]
-        LangRouter["Language Hint & Script Router"]
-    end
-
-    subgraph Brain ["Intelligence Core & Orchestrator"]
-        ModeResolver["Execution Mode Resolver"]
-        RefResolver["Conversational Reference Resolver"]
-        IntentNLU["Semantic Intent & Entity Extractor"]
-        LLMFailover["Dual LLM Chain (Gemini Primary -> Groq Secondary -> Local Fallback)"]
-    end
-
-    subgraph Services ["Authoritative Tool Services"]
-        MedService["Medicine & Adherence Service"]
-        SchedulerService["APScheduler Engine & Missed Dose Escalation"]
-        OCMEMemory["Episodic Memory Retriever"]
-        RAGService["Document Parser & Grounded Search"]
-        EmergencyDispatch["Emergency & Notification Manager"]
-    end
-
-    subgraph Persistence ["Persistence Layer"]
-        DB[(PostgreSQL / Supabase Production)]
-        DocStorage["Encrypted Document Storage"]
-    end
-
-    User <-->|Microphone / Speaker| AudioRecorder
-    User <-->|Touch / Display| UI
-    Caregiver <-->|HTTPS Web Session| UI
-
-    AudioRecorder -->|POST /api/speech/transcribe| APIRoutes
-    UI <-->|REST API Requests| APIRoutes
-    TTSClient <--|Synthesized Audio Stream| APIRoutes
-
-    APIRoutes --> AuthMiddleware
-    AuthMiddleware --> SpeechPipeline
-    SpeechPipeline --> Brain
-    Brain --> Services
-    Services --> Persistence
-    SchedulerService -->|Missed Dose Escalation| EmergencyDispatch
-    EmergencyDispatch -->|Push / Notification| Caregiver
-```
+The system operates via a decoupled frontend and backend:
+1. **Frontend**: The React application captures voice or touch inputs. Audio is captured and sent securely to the backend API.
+2. **Speech Pipeline**: An audio preprocessor handles formatting before utilizing Whisper ASR for accurate transcription, with routing for specific dialects.
+3. **Intelligence Core**: A conversational orchestrator evaluates the transcript against recent history, determining whether it is a medical query, memory recall, or emergency.
+4. **Authoritative Services**: Modifies adherence records, escalates notifications via background schedulers, or queries isolated RAG/memory stores.
+5. **Response & TTS**: The backend returns a text response, and the browser-side SpeechSynthesis API handles Text-to-Speech audio generation locally.
+6. **Persistence**: State is strictly maintained in PostgreSQL (Supabase) using zero-trust tenant isolation to ensure no cross-contamination of patient data.
 
 ---
 
 ## Technology Stack
 
-| Component | Technologies |
-|---|---|
-| **Backend API** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2 |
-| **Database & ORM** | PostgreSQL (Supabase) in production, SQLite 3 (WAL mode) fallback, SQLAlchemy 2.0 |
-| **Frontend Application** | React 19, Vite 8, Tailwind CSS, Lucide Icons |
-| **Speech Processing & ASR** | Groq Whisper (`whisper-large-v3-turbo`), PyAV (`av`), NumPy, SciPy, Python `wave` |
-| **AI & LLM Providers** | Google Gemini (Primary), Groq / LLaMA (Secondary / Failover), Rule-based Fallback |
-| **Document Processing** | PyMuPDF (`fitz`), Tesseract-OCR (`pytesseract`) |
-| **Job Scheduling** | APScheduler (automated interval evaluation & escalation) |
-| **Containerization & CI** | Docker, GitHub Actions CI Pipeline |
-| **Hosting Platform** | Render (Dockerized Web Service + Static Site) |
+- **Backend API**: Python 3.11+, FastAPI, Uvicorn
+- **Database & ORM**: PostgreSQL (Supabase session pooler), SQLAlchemy 2.0 (fallback to SQLite 3 WAL mode)
+- **Frontend Application**: React 19, Vite 8, Tailwind CSS, Lucide Icons
+- **Speech Processing & ASR**: Groq Whisper (`whisper-large-v3-turbo`) with local Faster-Whisper (tiny) fallback, PyAV (`av`), NumPy, SciPy
+- **Text-to-Speech**: Browser Web Speech API (SpeechSynthesis), client-side
+- **AI & LLM Providers**: Google Gemini (Primary), Groq (Secondary / Failover)
+- **Document Processing**: PyMuPDF (`fitz`), Tesseract-OCR (`pytesseract`)
+- **Job Scheduling**: APScheduler (interval evaluation & missed dose escalation)
+- **Hosting Platform**: Render (Web Service + Static Site)
 
 ---
 
-## Voice & Multilingual Support
+## Voice & AI
 
 ORMA AI employs an adaptive speech pipeline designed to handle varying acoustic conditions:
 
-### Production Priority
-- **English**: Fully validated end-to-end voice transcription, intent parsing, medication confirmations, and voice synthesis. Recommended for primary production use.
+- **Production English**: Fully validated end-to-end voice transcription, intent parsing, medication confirmations, and voice synthesis.
+- **Multilingual Beta**: Transcription and language handling for Malayalam (`ml-IN`), Tamil (`ta-IN`), Hindi (`hi-IN`), Arabic (`ar-SA`), and Manglish. Features automated language detection and script normalization heuristics.
 
-### Beta Languages
-- **Malayalam** (`ml`): Beta voice transcription with script normalization and phonetic recovery heuristics.
-- **Tamil** (`ta`): Beta voice transcription and regional TTS synthesis.
-- **Hindi** (`hi`): Beta voice transcription and conversational handling.
-- **Manglish**: Beta support for English-Malayalam code-switched phrases.
-
-> **Engineering Note**: Multilingual speech recognition accuracy is actively being optimized. Performance can vary based on microphone proximity, background acoustic noise, regional dialects, and utterance duration. Single-word utterances (such as isolated affirmations) present higher acoustic ambiguity than full sentences. Systematic benchmark results are continuously gathered to improve model selection and prompt conditioning.
+*Note: Non-English speech recognition accuracy is actively being optimized. Performance can vary based on noise levels, dialects, and single-word utterance ambiguity.*
 
 ---
 
-## Safety, Privacy & Medical Disclaimers
+## Caregiver & Family Connection
 
-### Implemented Security Measures
-- **Tenant Data Isolation**: Database queries, document vectors, and memory extractions strictly enforce `user_id == current_user.id` or require an active, approved caregiver relationship.
-- **Deterministic Medical Guardrails**: The conversational brain enforces strict prompt safety constraints:
-  > *"Never claim that a user has taken a medicine unless the database context explicitly states it is confirmed/taken."*
-- **Emergency Keyword Precedence**: Life-safety keywords immediately trigger emergency alert protocols and bypass generative LLM latency.
-- **Credential & Secret Isolation**: API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, `JWT_SECRET_KEY`) reside exclusively in backend server environments and are never exposed in frontend bundles or client logs.
+ORMA AI enables secure, consented data sharing between elderly users and trusted caregivers:
 
-### Medical Disclaimer
-> **IMPORTANT**: ORMA AI is an assistive technology prototype designed for memory support, routine tracking, and caregiver communication. It is **not a certified medical device** and does not provide clinical diagnoses, medical advice, prescription adjustments, or emergency medical services. ORMA AI must never replace professional healthcare consultations, physician advice, or human caregiver supervision. In acute medical emergencies, immediately contact local emergency services.
+1. **Elderly User**: Navigates to **Settings → Family Connections** and clicks **Generate Connection Code**. A secure, expiring code is generated.
+2. **Caregiver**: Navigates to their **Settings → Family Connections** and enters the generated code.
+3. **Elderly User**: Reviews the pending request in their dashboard and clicks **Approve**.
+4. **Connected State**: The caregiver is now authorized to view permitted care information. The elderly user maintains full control and can revoke access at any time.
+
+---
+
+## Authentication & Account Security
+
+ORMA AI uses a robust authentication flow built directly into the application:
+- **Sign Up**: Provides immediate dashboard access upon registration.
+- **Email Verification**: Verification (using the Gmail API for delivery) can be completed post-login.
+- **Password Reset**: Secure reset flows using time-bound OTPs.
+- **Account Deletion**: Authenticated account deletion instantly scrubs personal data and cleans up active caregiver relationships.
+- **Data Isolation**: Strict multi-tenant isolation ensures database queries and vector retrievals are exclusively bound to `user_id == current_user.id` or authorized caregiver links.
+
+---
+
+## Product Tour
+
+### Desktop Experience
+
+<div align="center">
+  <img src="docs/screenshots/01-landing-page.png" alt="Landing Page" width="45%" />
+  <img src="docs/screenshots/02-login-page.png" alt="Login Page" width="45%" />
+  
+  <br/>
+  
+  <img src="docs/screenshots/03-home-dashboard.png" alt="Home Dashboard" width="45%" />
+  <img src="docs/screenshots/04-voice-conversation-start.png" alt="Voice Conversation Start" width="45%" />
+  
+  <br/>
+  
+  <img src="docs/screenshots/05-voice-medication-response.png" alt="Voice Medication Response" width="45%" />
+  <img src="docs/screenshots/06-medicines.png" alt="Medicines" width="45%" />
+  
+  <br/>
+  
+  <img src="docs/screenshots/07-reminders-notifications.png" alt="Reminders and Notifications" width="45%" />
+  <img src="docs/screenshots/08-emergency-support.png" alt="Emergency Support" width="45%" />
+  
+  <br/>
+  
+  <img src="docs/screenshots/09-care-taker.png" alt="Caregiver Dashboard" width="45%" />
+</div>
+
+### Mobile Experience
+
+<div align="center">
+  <img src="docs/screenshots/Mobile overviewscreens.png" alt="ORMA AI landing experience across iPhone, Android, and iPad." width="30%" />
+  <img src="docs/screenshots/Mobile login screens.png" alt="Responsive authentication experience across iPhone, Android, and iPad." width="30%" />
+  <img src="docs/screenshots/Mobile ORMA home.png" alt="ORMA AI home experience across iPhone, Android, and iPad." width="30%" />
+</div>
 
 ---
 
 ## Deployment
 
-The production release is hosted on Render across two dedicated services:
-
-- **Frontend Web Application**: [https://app-orma-ai.onrender.com](https://app-orma-ai.onrender.com)
-- **Backend Core API**: [https://orma-ai.onrender.com](https://orma-ai.onrender.com)
-- **Interactive OpenAPI Documentation**: [https://orma-ai.onrender.com/docs](https://orma-ai.onrender.com/docs)
-
-### Continuous Integration
-Every push to the `main` branch is automatically validated by the GitHub Actions CI pipeline:
-- **Backend Test Suite**: Executes 397 regression, unit, intelligence, voice, and RAG tests.
-- **Frontend Verification**: Runs ESLint checks and compiles the production Vite bundle before deployment.
+The production release is hosted on **Render**:
+- **Frontend Web Application**: Deployed as a static React/Vite site.
+- **Backend Core API**: Deployed as a containerized Python FastAPI web service backed by a Supabase PostgreSQL instance.
 
 ---
 
-## Testing & Quality Assurance
+## Testing & Quality
 
-ORMA AI maintains a comprehensive automated testing suite:
+ORMA AI maintains a comprehensive suite of verifications:
 
-| Test Layer | Scope | Tests | CI Status |
-|---|---|---|---|
-| **Voice & ASR Pipeline** | Audio decoding, silence trimming, loudness normalization, WAV writing | 22 tests | **PASS** |
-| **Intelligence & LLM Routing** | Mode resolution, intent classification, multi-turn followups, fallback | 145 tests | **PASS** |
-| **Medication & Scheduler** | Date-scoping, timezone handling, adherence marking, midnight escalation | 68 tests | **PASS** |
-| **Authentication & RBAC** | JWT validation, password hashing, caregiver link approvals | 72 tests | **PASS** |
-| **Document RAG & Memory** | OCR extraction, chunking, tenant isolation, memory recall | 54 tests | **PASS** |
-| **Full Integration Gate** | End-to-end release validation, API contracts, notification delivery | 36 tests | **PASS** |
-| **Total Automated Suite** | Complete backend test surface | **397 tests** | **PASS (100%)** |
-| **Frontend Code Quality** | ESLint static analysis | 0 errors / 0 warnings | **PASS** |
-| **Frontend Production Build** | Vite production compilation & minification | Clean bundle | **PASS** |
+- **Automated Backend Tests**: 422 tests executing across voice pipelines, LLM intelligence, scheduling, auth, and integration boundaries.
+  - *Current Status*: 421 tests passing successfully. (1 known limitation related to UTC/Local timezone boundary alignment during mock evaluations).
+- **Frontend Verification**: Clean `npm run lint` validation with 0 errors/warnings. Clean Vite production build execution.
+- **Production Guardrails**: Strict session connection pools, startup JWT secret validations, and fallback environments.
 
-All 397 backend tests passed in GitHub Actions CI workflow run #20 for release commit `0b6f4df`.
+---
 
-To run the test suites locally:
+## Privacy, Security & Medical Disclaimer
 
-```bash
-# Run backend pytest suite
-pytest backend/tests/ -q
+**IMPORTANT**: ORMA AI is an assistive technology prototype designed for memory support, routine tracking, and caregiver communication. It is **not a certified medical device** and does not provide clinical diagnoses, medical advice, prescription adjustments, or emergency medical services.
 
-# Run frontend lint and build
-cd frontend
-npm run lint
-npm run build
-```
+ORMA AI must never replace professional healthcare consultations, physician advice, or human caregiver supervision. In acute medical emergencies, immediately contact local emergency services.
 
 ---
 
@@ -207,41 +169,31 @@ npm run build
 ### v0.1.0-beta.1
 **Status**: Live Beta (Deployed to Production)
 
-**Release Highlights**:
-- **Production Voice Pipeline**: English voice interaction with WebM/Opus client recording and server-side Whisper processing.
-- **Multilingual Beta**: Initial voice routing for Malayalam, Tamil, Hindi, and Manglish.
-- **Reliable Scheduler Engine**: Timezone-aware medication scheduler featuring 30-minute escalation and a 24-hour recency window that safely accommodates midnight boundary crossings.
-- **Conversational Adherence**: Contextual understanding of affirmations (*"I took it"*) with pronoun reference resolution.
-- **Caregiver Hub**: Linking elderly and caregiver profiles with notification telemetry.
-- **Zero External Audio Dependencies**: Standardized on Python's built-in `wave` module and PyAV for cross-platform container portability.
-- **Automated CI Validation**: 397 passing tests in continuous integration.
+**Highlights**:
+- Production English voice pipeline with Whisper ASR and Gemini intent processing.
+- Completed elderly-to-caregiver Family Connections approval flow.
+- Minimal-footprint PostgreSQL connection pooling for Render scaling.
+- Verified Gmail API integration for critical email deliveries.
 
 ---
 
-## Known Limitations
+## Limitations & Roadmap
 
-- **Multilingual Voice in Beta**: Non-English speech recognition (Malayalam, Tamil, Hindi) is in Beta. Short, single-word phrases may experience lower accuracy compared to full-sentence utterances.
-- **Acoustic Dependency**: Speech transcription depends on ambient noise levels, microphone hardware quality, and clear speech cadence.
-- **Cloud Free-Tier Cold Starts**: On free-tier hosting environments, backend instances may take a few seconds to spin up if idle.
-- **Not Medical Care**: As stated in the disclaimer, ORMA AI assists with daily routines and memory support; it does not diagnose or manage medical conditions.
+### Known Limitations
+- **Multilingual Voice in Beta**: Non-English speech recognition is in Beta. Short, single-word phrases may experience lower accuracy compared to full-sentence utterances.
+- **Hardware Dependency**: Transcription accuracy depends on microphone quality and ambient noise.
+- **Render Cold Starts**: On free-tier environments, the backend may take a few seconds to wake from idle.
 
----
-
-## Roadmap
-
-- [ ] **Multilingual ASR Robustness**: Ongoing dataset benchmarking and prompt tuning for dialect-specific accuracy.
-- [ ] **Elderly-Friendly Audio UX**: Enhanced silence padding, pause tolerance, and configurable TTS speech rates.
-- [ ] **Advanced Caregiver Workflows**: Weekly adherence analytics summaries and multi-channel SMS/WhatsApp alerts.
-- [ ] **Real-Time Streaming**: Exploration of WebSocket bidirectional audio streaming for ultra-low-latency voice turns.
-- [ ] **Mobile App Package**: Progressive Web App (PWA) offline caching and native container wrappers.
-- [ ] **Progression to v1.0**: Hardening all Beta features toward general availability.
+### Roadmap
+- **Multilingual ASR Robustness**: Ongoing dataset benchmarking for dialect-specific accuracy.
+- **Advanced Caregiver Analytics**: Weekly adherence summaries and detailed trend reports.
+- **Real-Time Streaming**: Exploration of WebSocket bidirectional audio streaming for ultra-low latency.
 
 ---
 
 ## Contributing
 
 Contributions, issue reports, and suggestions are welcome!
-
 1. Fork the repository.
 2. Create your feature branch (`git checkout -b feature/amazing-feature`).
 3. Ensure all tests pass (`pytest backend/tests/` and `npm run lint`).
