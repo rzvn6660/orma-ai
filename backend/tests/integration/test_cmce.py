@@ -31,13 +31,17 @@ def test_caregiver_conversation_resolution():
         name = "Sarah"
         role = "caregiver"
         
-    # Unambiguous
+    # No DB session supplied → caregiver has no resolvable linked patient.
+    # SubjectResolver must return the sentinel, not the old hardcoded "default_elderly" / "John".
+    from context.subject_resolver import NO_LINKED_PATIENT_SENTINEL
     ctx = ContextResolver.resolve(MockCaregiver(), "Did John take his medicine?", None)
     
     assert ctx.actor_id == "c1"
     assert ctx.actor_role == "caregiver"
-    assert ctx.subject_id == "default_elderly"
-    assert ctx.subject_name == "John"
+    assert ctx.subject_id == NO_LINKED_PATIENT_SENTINEL, (
+        f"Expected sentinel for caregiver with no DB session, got: '{ctx.subject_id}'. "
+        "The old 'default_elderly' fallback must not be used."
+    )
     assert not ctx.requires_clarification
     assert "add_medicine" in ctx.permissions
 
@@ -59,16 +63,19 @@ def test_doctor_conversation_resolution():
         name = "Dr. Ahmed"
         role = "doctor"
         
-    # Ambiguous
+    # Ambiguous — no patient specified
     ctx1 = ContextResolver.resolve(MockDoctor(), "Show me the records", None)
     assert ctx1.actor_role == "doctor"
     assert ctx1.requires_clarification is True  # Should prompt which patient
     assert "Which patient" in ctx1.clarification_message
 
-    # Clear
+    # Patient name present in text but no DB session available.
+    # Without a database, the resolver cannot confirm which patient "John" refers to.
+    # Correct production behavior: require clarification rather than inventing a patient identity.
     ctx2 = ContextResolver.resolve(MockDoctor(), "Show me John's records", None)
-    assert ctx2.subject_name == "John"
-    assert ctx2.requires_clarification is False
+    assert ctx2.actor_role == "doctor"
+    assert ctx2.requires_clarification is True
+    assert "Which patient" in ctx2.clarification_message
 
 def test_memory_ownership_fields():
     mem = MemoryEvent(

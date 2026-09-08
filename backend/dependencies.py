@@ -6,7 +6,9 @@ from database import get_db
 from models.user import User
 from services.auth_service import SECRET_KEY, ALGORITHM
 from context.context_resolver import ContextResolver
+from context.subject_resolver import NO_LINKED_PATIENT_SENTINEL
 import uuid
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -25,7 +27,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except jwt.PyJWTError as e:
         print(f"DEBUG [JWT ERROR]: {str(e)}")
         raise credentials_exception
-    
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         print(f"DEBUG [DB]: User not found for id {user_id}")
@@ -38,7 +40,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         if token_ver is None or token_ver != user_token_ver:
             print(f"DEBUG [JWT]: token_version mismatch (token={token_ver}, db={user_token_ver}) - session revoked")
             raise credentials_exception
-    
+
     # Attach jwt_role to user object temporarily for debugging down the chain
     user.jwt_role = jwt_role
     return user
@@ -61,12 +63,12 @@ from models.user import User, CaregiverRelationship
 
 def get_current_context(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Standardize Request Context for all routes
-    text_placeholder = "" # API calls might not have text, they just need subject resolution
+    text_placeholder = ""  # API calls might not have text, they just need subject resolution
     ctx = ContextResolver.resolve(current_user, text_placeholder, db)
-    
+
     subject_id = ctx.subject_id
     subject_name = ctx.subject_name
-    
+
     # Support explicit Subject switching via header (for multi-patient Caregivers/Doctors)
     header_subject_id = request.headers.get("x-subject-id")
     if header_subject_id:
@@ -74,6 +76,16 @@ def get_current_context(request: Request, current_user: User = Depends(get_curre
         subject_user = db.query(User).filter(User.id == subject_id).first()
         if subject_user:
             subject_name = subject_user.name
+
+    # CAREGIVER WITH NO LINKED PATIENT — explicit early exit.
+    # SubjectResolver sets the sentinel when zero approved relationships exist.
+    # Return a clean 404 rather than letting a placeholder ID reach authorization.
+    if subject_id == NO_LINKED_PATIENT_SENTINEL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No linked patient found. Please connect an elderly account before accessing patient data.",
+            headers={"X-ORMA-Hint": "no_linked_patient"}
+        )
 
     # SECURE RELATIONSHIP AUTHORIZATION ENFORCEMENT
     if current_user.role == "caregiver":
@@ -103,7 +115,6 @@ def get_current_context(request: Request, current_user: User = Depends(get_curre
             "role": ctx.subject_role
         },
         "permissions": ctx.permissions,
-        "organization_id": None, # Future
+        "organization_id": None,  # Future
         "request_id": str(uuid.uuid4())
     }
-
