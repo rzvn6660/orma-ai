@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
+from typing import Optional
 
 from database import get_db
 from models.user import User, AuditLog, PasswordResetToken, RateLimit, CaregiverRelationship, ConnectionCode, NotificationPreferences, EmailVerificationOTP
@@ -198,10 +199,10 @@ class OTPVerify(BaseModel):
     role: str = "elderly"
 
 class GoogleAuth(BaseModel):
-    id_token: str = None
-    email: str = None
-    name: str = None
-    role: str = None
+    id_token: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

@@ -363,9 +363,9 @@ def run_tests():
     # 14. Google Authentication Safety Checks
     # ──────────────────────────────────────────────────────────────────────────
     print("\n[CHECK 14] Testing Google Auth Token Verification...")
-    # Missing token fails with 400
+    # Missing token fails with 422
     r_g_empty = client.post("/api/auth/google", json={})
-    assert r_g_empty.status_code == 400
+    assert r_g_empty.status_code == 422
     
     # Invalid token fails with 400
     r_g_invalid = client.post("/api/auth/google", json={"id_token": "fake.jwt.token"})

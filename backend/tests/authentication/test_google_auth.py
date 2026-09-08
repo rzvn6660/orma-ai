@@ -44,8 +44,8 @@ def setup_db():
 def test_google_auth_missing_token():
     """Verify that empty/missing id_token requests are rejected with 400 Bad Request."""
     response = client.post("/api/auth/google", json={})
-    assert response.status_code == 400
-    assert "Simulated authentication is disabled" in response.json()["detail"] or "required" in response.json()["detail"]
+    assert response.status_code == 422
+    assert "detail" in response.json()
 
 def test_google_auth_invalid_token():
     """Verify that unverified/malformed ID tokens raise 400 Bad Request."""

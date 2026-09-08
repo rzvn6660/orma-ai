@@ -189,7 +189,7 @@ def run_audit_tests():
     # 10. Google Auth Validation (Unverified / Missing Tokens)
     print("\n[CHECK 10] Testing Google OAuth Token Guardrails...")
     empty_google = client.post("/api/auth/google", json={})
-    assert empty_google.status_code == 400
+    assert empty_google.status_code == 422
     fake_google = client.post("/api/auth/google", json={"id_token": "fake_invalid_token_xyz"})
     assert fake_google.status_code == 400
     audit_results["google_auth_guard"] = "PASS (IMPLEMENTED_REAL — Requires Google Client ID for live)"
