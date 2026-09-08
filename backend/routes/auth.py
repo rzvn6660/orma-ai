@@ -200,9 +200,10 @@ class OTPVerify(BaseModel):
 
 class GoogleAuth(BaseModel):
     id_token: str
-    email: Optional[str] = None
-    name: Optional[str] = None
+    intent: str  # 'login' or 'signup'
     role: Optional[str] = None
+    email: Optional[str] = None  # ignored; identity sourced from verified token only
+    name: Optional[str] = None   # ignored; identity sourced from verified token only
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
@@ -762,66 +763,103 @@ def verify_otp(data: OTPVerify, db: Session = Depends(get_db)):
 
 @router.post("/google")
 def google_auth(data: GoogleAuth, db: Session = Depends(get_db)):
-    verified_payload = None
+    """
+    Unified Google OAuth endpoint.
 
-    if data.id_token:
-        try:
-            verified_payload = google_auth_service.verify_google_id_token(data.id_token)
-        except ValueError as val_err:
-            raise HTTPException(status_code=400, detail=str(val_err))
-    else:
+    intent='login':
+      - Existing account => authenticate, preserve DB role, return JWT.
+      - No account       => 404 {hint: 'signup_required'}, never auto-create.
+
+    intent='signup':
+      - Existing account => 409 {hint: 'login_required'}, never duplicate.
+      - Missing/invalid role => 400.
+      - New account + valid role => create account, return JWT.
+
+    Identity is sourced exclusively from the verified Google ID token.
+    Client-supplied email/name fields are ignored.
+    """
+    # Validate intent
+    if data.intent not in ('login', 'signup'):
         raise HTTPException(
-            status_code=400, 
-            detail="Simulated authentication is disabled. A valid Google ID Token is required."
+            status_code=400,
+            detail="Invalid intent. Must be 'login' or 'signup'."
         )
 
+    # Verify Google ID token — identity is authoritative from here
+    try:
+        verified_payload = google_auth_service.verify_google_id_token(data.id_token)
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+
+    # Never log the raw token; only use verified fields
     verified_email = verified_payload["email"]
     verified_name = verified_payload["name"]
 
-    # Match existing user or create linked account
-    db_user = db.query(User).filter(User.email == verified_email).first()
-    
-    if not db_user:
-        # Role handling for genuine new Google user:
-        # Preserve user-selected role if valid ('elderly' or 'caregiver'), otherwise default to 'elderly'
-        user_role = data.role if data.role in ['elderly', 'caregiver'] else 'elderly'
-        
-        # Generate secure random password
-        random_password = secrets.token_urlsafe(32)
-        hashed_pass = get_password_hash(random_password)
+    db_user = db.query(User).filter(func.lower(User.email) == verified_email.lower()).first()
 
+    # ── LOGIN INTENT ──────────────────────────────────────────────────────────
+    if data.intent == 'login':
+        if not db_user:
+            raise HTTPException(
+                status_code=404,
+                detail="No ORMA account found for this Google account. Please create an account first.",
+                headers={"X-Hint": "signup_required"}
+            )
+
+        # Existing account: mark email_verified if not already set
+        if not getattr(db_user, 'email_verified', True):
+            db_user.email_verified = True
+            db.commit()
+
+        log = AuditLog(user_id=db_user.id, action="google_login", details=f"Google login verified for {verified_email}")
+        db.add(log)
+        db.commit()
+
+        access_token = create_access_token(
+            data={"sub": db_user.id, "role": db_user.role, "ver": db_user.token_version or 1},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": access_token, "token_type": "bearer", "user": format_user_dict(db_user, db)}
+
+    # ── SIGNUP INTENT ─────────────────────────────────────────────────────────
+    if data.intent == 'signup':
+        if db_user:
+            raise HTTPException(
+                status_code=409,
+                detail="An ORMA account already exists for this Google email. Please sign in instead.",
+                headers={"X-Hint": "login_required"}
+            )
+
+        # Strict role validation — never default silently
+        if data.role not in ('elderly', 'caregiver'):
+            raise HTTPException(
+                status_code=400,
+                detail="Role selection is required. Please select 'elderly' or 'caregiver'."
+            )
+
+        # Create account with a secure random password hash
+        hashed_pass = get_password_hash(secrets.token_urlsafe(32))
         new_user = User(
             email=verified_email,
             hashed_password=hashed_pass,
-            role=user_role,
+            role=data.role,
             name=verified_name,
-            email_verified=True
+            email_verified=True,  # Google guarantees email ownership
+            token_version=1
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        db_user = new_user
-    else:
-        if not getattr(db_user, "email_verified", True):
-            db_user.email_verified = True
-            db.commit()
 
-    # Log successful audit event
-    log = AuditLog(user_id=db_user.id, action="google_login", details=f"Google OAuth verified for {verified_email}")
-    db.add(log)
-    db.commit()
+        log = AuditLog(user_id=new_user.id, action="google_signup", details=f"New account created via Google OAuth for {verified_email} as {data.role}")
+        db.add(log)
+        db.commit()
 
-    # Issue standard ORMA access token
-    access_token = create_access_token(
-        data={"sub": db_user.id, "role": db_user.role, "ver": db_user.token_version or 1},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-
-    return {
-        "access_token": access_token, 
-        "token_type": "bearer", 
-        "user": format_user_dict(db_user, db)
-    }
+        access_token = create_access_token(
+            data={"sub": new_user.id, "role": new_user.role, "ver": new_user.token_version or 1},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {"access_token": access_token, "token_type": "bearer", "user": format_user_dict(new_user, db)}
 
 
 # ──────────────────────────────────────────────────────────────

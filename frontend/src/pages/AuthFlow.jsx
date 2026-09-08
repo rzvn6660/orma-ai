@@ -154,6 +154,9 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [hoveredFeature, setHoveredFeature] = useState(null);
+  // Holds verified Google credential in component memory only during the Google-signup flow.
+  // NEVER written to localStorage, sessionStorage, URL params, logs, or any persistent store.
+  const [pendingGoogleCredential, setPendingGoogleCredential] = useState(null);
   
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
@@ -365,6 +368,7 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
     }
   };
 
+  // Google Sign-In — LOGIN intent (existing account only)
   const handleGoogleLogin = () => {
     setError('');
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -392,17 +396,110 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
           }
 
           try {
-            const res = await authApi.googleLogin({ 
-              id_token: response.credential, 
-              role: role || null 
-            });
+            const res = await authApi.googleLogin(response.credential);
             localStorage.setItem('orma_token', res.access_token);
             onLogin(res.user);
           } catch (err) {
-            setError(err.response?.data?.detail || "Google authentication failed.");
+            const status = err.response?.status;
+            const detail = err.response?.data?.detail || 'Google authentication failed.';
+            if (status === 404) {
+              // No ORMA account — hold credential in memory and go to role selection for signup
+              setPendingGoogleCredential(response.credential);
+              setError('');
+              setView('google-role');
+            } else {
+              setError(detail);
+            }
           } finally {
             setGoogleLoading(false);
           }
+        },
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          setGoogleLoading(false);
+          setError('Google Sign-In prompt suppressed by browser settings.');
+        } else if (notification.isDismissedMoment()) {
+          if (notification.getDismissedReason() !== 'credential_returned') {
+            setGoogleLoading(false);
+          }
+        }
+      });
+    } catch (err) {
+      setError('Failed to launch Google Sign-In: ' + err.message);
+      setGoogleLoading(false);
+    }
+  };
+
+  // Google Sign-Up — SIGNUP intent with explicit role (called after google-role view)
+  const handleGoogleSignup = async (selectedRole) => {
+    if (!pendingGoogleCredential) {
+      setError('Google credential expired. Please try again.');
+      setView('role');
+      return;
+    }
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const res = await authApi.googleSignup(pendingGoogleCredential, selectedRole);
+      setPendingGoogleCredential(null); // discard credential from memory immediately
+      localStorage.setItem('orma_token', res.access_token);
+      onLogin(res.user);
+    } catch (err) {
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail || 'Google account creation failed.';
+      if (status === 409) {
+        setPendingGoogleCredential(null);
+        setError('An ORMA account already exists for this Google email. Please sign in instead.');
+        setView('login');
+      } else {
+        setError(detail);
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  // Called when user cancels out of the Google signup role selection
+  const handleCancelGoogleSignup = () => {
+    setPendingGoogleCredential(null); // discard credential from memory
+    setError('');
+    setView('login');
+  };
+
+  // Google Sign-In — launched from the Create Account / signup path (no credential yet)
+  const handleGoogleSignupLaunch = () => {
+    setError('');
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+    if (!googleClientId || googleClientId.includes('your_google_client_id')) {
+      setError('Google Sign-In is not configured in environment variables.');
+      return;
+    }
+
+    if (!window.google?.accounts?.id) {
+      setError('Google SDK is loading. Please try again in a moment.');
+      return;
+    }
+
+    setGoogleLoading(true);
+
+    try {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response?.credential) {
+            setError('Google authentication failed: No credential received.');
+            setGoogleLoading(false);
+            return;
+          }
+          // Hold credential in memory only; go to role selection
+          setPendingGoogleCredential(response.credential);
+          setGoogleLoading(false);
+          setView('google-role');
         },
         auto_select: false,
         cancel_on_tap_outside: true
@@ -786,9 +883,91 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
                   </button>
                 </div>
 
-                <div className="mt-8 text-center">
+                {/* Google signup shortcut from role screen */}
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">or</span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+                <button
+                  type="button"
+                  disabled={googleLoading}
+                  onClick={handleGoogleSignupLaunch}
+                  className="mt-4 w-full flex items-center justify-center gap-2 py-3.5 px-4 border-2 border-slate-200 hover:bg-slate-50 rounded-2xl transition-colors font-semibold text-sm text-slate-700 cursor-pointer disabled:opacity-60"
+                >
+                  {googleLoading ? (
+                    <span className="text-purple-600 text-xs font-bold">Connecting...</span>
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4 text-purple-600" />
+                      <span>Continue with Google</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="mt-6 text-center">
                   <button onClick={() => setView('login')} className="text-slate-500 font-semibold text-sm hover:text-slate-800 flex items-center justify-center gap-2 mx-auto cursor-pointer">
                     <ArrowLeft className="w-4 h-4" /> Already have an account? Sign In
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* VIEW 4b: GOOGLE SIGNUP ROLE SELECTION */}
+            {view === 'google-role' && (
+              <motion.div key="google-role" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                <div className="text-center mb-8">
+                  <div className="inline-block px-3.5 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider mb-3">
+                    Google Sign-Up
+                  </div>
+                  <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Choose Your Role</h2>
+                  <p className="text-slate-500 text-sm">Select how you'll use ORMA AI. This cannot be changed later.</p>
+                </div>
+
+                {error && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm font-semibold">
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <button
+                    disabled={googleLoading}
+                    onClick={() => handleGoogleSignup('elderly')}
+                    className="w-full p-6 rounded-3xl border-2 border-slate-200 bg-slate-50/70 hover:bg-purple-50/80 hover:border-purple-300 transition-all flex items-start text-left gap-5 group cursor-pointer disabled:opacity-60"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <UserCircle className="w-8 h-8" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-purple-700 transition-colors">Parent / Elderly User</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">Access hands-free voice AI for medicine reminders, memory tracking, and daily companionship.</p>
+                    </div>
+                    {googleLoading && <span className="text-xs text-purple-600 font-bold self-center">Creating...</span>}
+                  </button>
+
+                  <button
+                    disabled={googleLoading}
+                    onClick={() => handleGoogleSignup('caregiver')}
+                    className="w-full p-6 rounded-3xl border-2 border-slate-200 bg-slate-50/70 hover:bg-blue-50/80 hover:border-blue-300 transition-all flex items-start text-left gap-5 group cursor-pointer disabled:opacity-60"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-blue-700 transition-colors">Child / Family Caregiver</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">Remotely monitor medicine adherence, receive missed-dose alerts, and track wellness metrics.</p>
+                    </div>
+                    {googleLoading && <span className="text-xs text-blue-600 font-bold self-center">Creating...</span>}
+                  </button>
+                </div>
+
+                <div className="mt-8 text-center">
+                  <button
+                    onClick={handleCancelGoogleSignup}
+                    className="text-slate-500 font-semibold text-sm hover:text-slate-800 flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Cancel — Back to Sign In
                   </button>
                 </div>
               </motion.div>
@@ -903,6 +1082,28 @@ export default function AuthFlow({ onLogin, onBack, initialView = 'login' }) {
                     <ArrowLeft className="w-4 h-4" /> Change Role Selection
                   </button>
                 </div>
+
+                {/* Google signup option within the email/password signup form */}
+                <div className="mt-6 flex items-center gap-4">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">or</span>
+                  <div className="flex-1 h-px bg-slate-200" />
+                </div>
+                <button
+                  type="button"
+                  disabled={googleLoading}
+                  onClick={handleGoogleSignupLaunch}
+                  className="mt-4 w-full flex items-center justify-center gap-2 py-3.5 px-4 border-2 border-slate-200 hover:bg-slate-50 rounded-2xl transition-colors font-semibold text-sm text-slate-700 cursor-pointer disabled:opacity-60"
+                >
+                  {googleLoading ? (
+                    <span className="text-purple-600 text-xs font-bold">Connecting...</span>
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4 text-purple-600" />
+                      <span>Sign up with Google instead</span>
+                    </>
+                  )}
+                </button>
               </motion.div>
             )}
 

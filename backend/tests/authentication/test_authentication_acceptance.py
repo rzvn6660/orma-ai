@@ -325,8 +325,8 @@ def run_step11e_acceptance_tests():
         print("\n[TEST 8] Testing Google OAuth Configuration & Guardrails...")
         google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
         
-        # Test invalid token rejection
-        fake_google_res = client.post("/api/auth/google", json={"id_token": "fraudulent_google_token_123"})
+        # Test invalid token rejection (intent is required; login intent used for this guard check)
+        fake_google_res = client.post("/api/auth/google", json={"id_token": "fraudulent_google_token_123", "intent": "login"})
         assert fake_google_res.status_code == 400
 
         if google_client_id and not google_client_id.startswith("your_google_client_id"):

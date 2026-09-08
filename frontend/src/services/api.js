@@ -219,8 +219,12 @@ export const authApi = {
     const { data } = await api.put('/api/auth/me', userData);
     return data;
   },
-  googleLogin: async ({ id_token, role }) => {
-    const { data } = await api.post('/api/auth/google', { id_token, role });
+  googleLogin: async (idToken) => {
+    const { data } = await api.post('/api/auth/google', { id_token: idToken, intent: 'login' });
+    return data;
+  },
+  googleSignup: async (idToken, role) => {
+    const { data } = await api.post('/api/auth/google', { id_token: idToken, intent: 'signup', role });
     return data;
   },
   requestOtp: async (phone) => {

@@ -363,12 +363,12 @@ def run_tests():
     # 14. Google Authentication Safety Checks
     # ──────────────────────────────────────────────────────────────────────────
     print("\n[CHECK 14] Testing Google Auth Token Verification...")
-    # Missing token fails with 422
+    # Missing token fails with 422 (Pydantic: id_token and intent both required)
     r_g_empty = client.post("/api/auth/google", json={})
     assert r_g_empty.status_code == 422
     
     # Invalid token fails with 400
-    r_g_invalid = client.post("/api/auth/google", json={"id_token": "fake.jwt.token"})
+    r_g_invalid = client.post("/api/auth/google", json={"id_token": "fake.jwt.token", "intent": "login"})
     assert r_g_invalid.status_code == 400
     print("  -> [PASS] Google authentication rejects unverified tokens")
     results["14_google_auth_validation"] = "PASS"
