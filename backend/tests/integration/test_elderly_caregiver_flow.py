@@ -25,6 +25,9 @@ def test_elderly_caregiver_connection_flow():
 
     elder_user = None
     cg_user = None
+    elder_token = None
+    cg_token = None
+    caregiver_token = None
 
     try:
         # 1. Create Elderly user
@@ -143,9 +146,10 @@ def test_elderly_caregiver_connection_flow():
                 client.delete("/api/auth/me", headers={"Authorization": f"Bearer {elder_token}"})
             except Exception:
                 pass
-        if cg_token:
+        caregiver_cleanup_token = cg_token or caregiver_token
+        if caregiver_cleanup_token:
             try:
-                client.delete("/api/auth/me", headers={"Authorization": f"Bearer {cg_token}"})
+                client.delete("/api/auth/me", headers={"Authorization": f"Bearer {caregiver_cleanup_token}"})
             except Exception:
                 pass
         try:
