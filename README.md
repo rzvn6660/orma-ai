@@ -30,6 +30,34 @@ https://github.com/user-attachments/assets/3b10af6c-2fa7-4205-8ab2-df2a11f30448
 
 ---
 
+## Executive Overview
+
+| Dimension | Description |
+| :--- | :--- |
+| **What It Is** | An assistive, voice-first AI memory and daily-living companion prototype for older adults. |
+| **Who It Is For** | Aging seniors managing daily routines and medications, and designated family caregivers needing peace of mind. |
+| **The Real-World Problem** | Small fonts, complex nested menus, multi-dose medication regimens, cognitive fatigue, and language barriers cause friction, missed doses, and safety risks for seniors. |
+| **Why Technically Interesting** | Not an LLM wrapper: combines an audio preprocessing pipeline, multilingual Whisper ASR, sub-second intent routing that offloads safety-critical workflows (medications, emergency dispatch) to deterministic backend services, an entity-extracting memory engine (OCME), grounded medical document RAG, and dual-LLM automated failover. |
+| **Where to See It Working** | **[Live Web Application](https://app-orma-ai.onrender.com)** • **[Interactive API Docs](https://orma-ai.onrender.com/docs)** • **[Video Walkthrough](#project-overview-video)** |
+
+---
+
+## Beta 1 at a Glance
+
+A concise summary of verified system capabilities in ORMA_AI `v0.1.0-beta.1`:
+
+* **Voice-First Interaction**: Hands-free spoken dialogue with browser audio capture, automated gain/silence preprocessing, and client-side synthesized speech playback.
+* **Multilingual Speech (Beta)**: Speech recognition, script normalization, and conversational interaction for Malayalam (`ml-IN`), Tamil (`ta-IN`), Hindi (`hi-IN`), Arabic (`ar-SA`, with dynamic RTL UI adaptation), and English.
+* **Medication Assistance**: Timezone-aware scheduling, dose confirmation via natural speech (*"I took my morning pills"*) or high-contrast touch controls, and missed-dose escalation.
+* **Memory Engine (OCME)**: Context-aware Older Care Memory Engine that securely extracts, stores, and recalls personal facts, preferences, and daily routines without prompt token bloat.
+* **Personal Document RAG**: Secure extraction and grounded retrieval of medical discharge summaries, prescriptions, and lab notes using `PyMuPDF` and `Tesseract OCR` with strict tenant isolation.
+* **Emergency Safety Routing**: Life-safety keywords (*"Help me"*, *"Call doctor"*, *"I fell"*) completely bypass generative LLM reasoning to invoke immediate deterministic caregiver alerts.
+* **Caregiver Support**: Role-based access control pairing senior accounts with family caregivers via expiring pairing codes (8-character alphanumeric format: XXXX-0000), providing adherence telemetry and notifications.
+* **Multi-Tenant Security**: Per-user database isolation, database-backed rate limiting per IP and action, Bcrypt password hashing, expiring signed JWTs, and secure Gmail API email verification.
+* **Automated Testing & CI**: Over 420 automated unit and integration tests (451 backend tests passing in CI) and frontend static analysis running on GitHub Actions.
+
+---
+
 ## Why ORMA_AI?
 
 As individuals age, managing daily routines, remembering complex medication regimens, and navigating modern touchscreens with small fonts and multi-step menus introduces substantial cognitive strain and physical friction. Older adults often experience:
@@ -97,7 +125,7 @@ ORMA_AI separates high-speed accessible frontend interactions from a stateful, r
 2. **Audio Preprocessor & ASR**: Ingests browser audio streams, normalizes sample rates, strips silence/noise, and routes to Groq Whisper (`whisper-large-v3-turbo`) with a local Faster-Whisper fallback.
 3. **Intent & Routing Core**: Analyzes incoming utterances and categorizes them across four operational modes:
    * `TOOL_ONLY`: Deterministic database lookups for schedule queries (*"What is my next medicine?"*) with zero LLM latency.
-   * `SAFETY_DETERMINISTIC`: Emergency phrases bypass external APIs to invoke instantaneous alerts.
+   * `SAFETY_DETERMINISTIC`: Emergency phrases bypass external APIs to invoke immediate alerts.
    * `LLM_WITH_TOOL`: Grounded synthesis combining database state with contextual LLM guidance.
    * `CONVERSATIONAL`: Empathetic dialogue for memory recall and general companionship.
 4. **Dual-LLM Resilient Failover**: Primary reasoning powered by Google Gemini (`gemini-1.5-flash`), backed by Groq (`llama-3.3-70b-versatile`) for automatic sub-second failover during provider degradation.
@@ -109,12 +137,38 @@ For in-depth architecture diagrams, sequence charts, and component breakdowns, s
 
 ## Key Engineering Highlights
 
-* **Multi-Tier Speech Pipeline**: Audio preprocessing pipeline utilizing `PyAV` and `SciPy` for gain normalization, format conversion, and silence trimming, coupled with dialect-aware Whisper prompting.
-* **Sub-Second Intent Routing**: Strict boundary separation between deterministic queries and generative reasoning eliminates hallucination on safety-critical tasks.
-* **Older Care Memory Engine (OCME)**: Persistent entity extraction and temporal recall allowing the assistant to remember family names, personal preferences, and past events without token bloat.
-* **Grounded Document RAG**: Ingests medical documents and prescription images via `PyMuPDF` and `Tesseract-OCR`. Chunks are tagged with `user_id` metadata to strictly prevent cross-tenant retrieval.
-* **Production Security Hardening**: Database-backed rate limiting per IP and action, strict JWT session lifetimes, Bcrypt password encryption, MIME-type and magic-byte upload validation, and secure email verification over the Gmail API.
-* **Zero-Trust Caregiver Linkage**: Time-limited pairing codes require explicit mutual approval before any caregiver access is granted; linkage can be instantly revoked by the senior at any time.
+ORMA_AI is built as a complete AI engineering and system-design project, featuring modular separation of concerns between user interaction, real-time audio, safety rules, and generative intelligence:
+
+1. **Voice → ASR → Router → Response → TTS Pipeline**:
+   - Ingests raw audio via Web Audio API browser hooks.
+   - Preprocesses audio on the server using `PyAV` and `SciPy` for sample rate normalization (16 kHz mono), gain normalization, and silence trimming.
+   - Routes audio to Groq Whisper (`whisper-large-v3-turbo`) with dialect-aware prompt conditioning, with an in-process Faster-Whisper fallback.
+   - Delivers low-latency responses through client-side Web Speech API playback.
+
+2. **Deterministic Safety Paths Separated from Generative Reasoning**:
+   - Safety-critical operations (medication confirmations, dosage lookups, missed-dose escalations, and emergency dispatch) execute through deterministic Python services and transactional SQL queries.
+   - Life-safety phrases (*"Help me"*, *"Call my doctor"*, *"Chest pain"*) immediately bypass generative LLM reasoning, eliminating hallucination risks and latency delays during urgent situations.
+
+3. **Older Care Memory Engine (OCME)**:
+   - Identifies and persists semantic entities, preferences, family relationships, and personal facts from open conversational turns.
+   - Scores memories with confidence and temporal validity, isolating them strictly per-user (`ocme_memories` table) and injecting relevant context into conversation prompts without token bloat.
+
+4. **Grounded Personal Document RAG**:
+   - Ingests medical summaries, prescriptions, and lab notes via `PyMuPDF` (for digital text) and `Tesseract-OCR` (for scanned imagery).
+   - Chunks text with mandatory tenant metadata boundaries (`user_id`), strictly preventing cross-tenant vector contamination and enforcing citation grounding.
+
+5. **Consented Caregiver Linkage & Authorization**:
+   - Employs expiring pairing codes (8-character alphanumeric format: XXXX-0000) via the `connection_codes` table, requiring explicit senior approval before telemetry access is granted.
+   - Enables seniors to instantly revoke caregiver access at any time, maintaining independence and dignity.
+
+6. **Multi-Tenant Isolation & Security Hardening**:
+   - Enforces strict row-level `user_id` query scoping across all database queries.
+   - Uses centralized database-backed sliding-window rate limiters (`rate_limits` table) across registration, chat, audio transcription, file uploads, and emergency alert endpoints.
+   - Implements Bcrypt password hashing (work factor 12), expiring signed JWT sessions, and transaction-safe Gmail API email verification.
+
+7. **Automated CI & Deterministic Test Isolation**:
+   - Executes continuous integration via GitHub Actions across every push and pull request.
+   - Maintains an automated backend test suite with over 420 unit and integration tests (451 backend tests passing in CI) with dedicated rate-limit isolation fixtures to guarantee test determinism.
 
 ---
 
@@ -200,6 +254,10 @@ ORMA_AI is currently in **Beta 1** (`v0.1.0-beta.1`). This release is an assisti
 * Validated medication tracking, timezone-aware scheduling, and caregiver escalation flows.
 * Validated RAG document ingestion and query retrieval with isolated data boundaries.
 
+### Known Limitations
+* **Beta Multilingual Recognition**: Non-English speech recognition is in Beta and may vary depending on microphone quality, ambient noise, and dialect variation.
+* **Prototype Status**: ORMA_AI is an assistive software prototype and not a certified medical device; it does not provide clinical diagnoses or replace professional healthcare and emergency services.
+
 ---
 
 ## Testing & Quality
@@ -208,16 +266,18 @@ ORMA_AI maintains strict automated testing across the codebase to ensure system 
 
 > **ORMA_AI Beta 1 completed Phases 2A–2H security testing. All confirmed findings identified within the tested scope were remediated and retested, with no unresolved confirmed vulnerabilities remaining within that scope.**
 
-* **Automated Backend Tests**: Over 420 automated unit and integration tests covering authentication, voice audio pipelines, intelligence orchestrator, tool routing, medication scheduling, and database access.
+* **Automated Backend Tests**: Over 420 automated unit and integration tests (451 backend tests passing in CI) covering authentication, voice audio pipelines, intelligence orchestrator, tool routing, medication scheduling, and database access.
 * **Frontend Static Analysis**: Clean `npm run lint` execution with 0 errors and 0 warnings.
 * **Production Build Validation**: Clean Vite production build execution.
-* **Continuous Integration**: Automated test suite and lint checks execute via GitHub Actions on every pull request.
+* **Continuous Integration**: Automated test suite and lint checks execute via GitHub Actions on every push and pull request.
 
 ---
 
 ## Security Engineering
 
 Security in ORMA_AI is designed using defense-in-depth across every layer:
+
+> **ORMA_AI Beta 1 completed Phases 2A–2H security testing. All confirmed findings identified within the tested scope were remediated and retested, with no unresolved confirmed vulnerabilities remaining within that scope.**
 
 * **Authentication & Password Security**: Cryptographically salted passwords using Bcrypt (work factor 12) and expiring signed JWT tokens with strict issuer verification.
 * **Zero-Trust Tenant Isolation**: Every SQL query and document vector query enforces `user_id` ownership constraints. Caregiver data access requires explicit, active mutual linkage.
