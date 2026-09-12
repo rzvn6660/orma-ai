@@ -23,6 +23,12 @@ As individuals age, managing daily routines, complex medication schedules, and n
 ORMA AI is a voice-first healthcare companion that bridges natural human dialogue with deterministic medical safety. Older adults can speak naturally—inquiring about medicines, confirming intake, recalling personal memories, or triggering life-safety assistance. An authoritative backend maintains schedule integrity, context, and escalates critical missed events to linked caregivers.
 
 ---
+## Intro Video 
+
+
+https://github.com/user-attachments/assets/3b10af6c-2fa7-4205-8ab2-df2a11f30448
+
+
 
 ## Key Capabilities
 
