@@ -57,19 +57,27 @@ async def lifespan(app: FastAPI):
     finally:
         stop_scheduler()
 
+env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
+
+# In production, disable public interactive API documentation
+docs_url = None if env_mode == "production" else "/docs"
+redoc_url = None if env_mode == "production" else "/redoc"
+openapi_url = None if env_mode == "production" else "/openapi.json"
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Orma AI Backend",
     description="Backend services for the Orma AI healthcare assistant.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=docs_url,
+    redoc_url=redoc_url,
+    openapi_url=openapi_url
 )
 
 # Configure CORS Middleware
 # In production, strictly enforce explicit origins from FRONTEND_URL and ALLOWED_ORIGINS.
 # In development/test mode, allow localhost and 127.0.0.1 for local developer workflows.
-env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
-
 allowed_origins_list = []
 allow_origin_regex = None
 
@@ -118,7 +126,13 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    env_mode = os.getenv("ENVIRONMENT", os.getenv("ENV", "development")).strip().lower()
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+
+    # Sensitive API responses must never be stored in shared or browser intermediary caches
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+
     if env_mode == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response

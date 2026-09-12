@@ -42,7 +42,7 @@ def get_memories(
             (OCMEMemory.title.ilike(search_term)) | (OCMEMemory.value.ilike(search_term))
         )
         
-    memories = query.all()
+    memories = query.limit(100).all()
     
     # Python-side sorting for flexibility in this sprint
     if sort_by == "importance":

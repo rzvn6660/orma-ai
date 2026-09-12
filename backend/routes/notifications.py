@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -60,10 +60,17 @@ async def update_preferences(
     return res
 
 @router.get("/")
-def get_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_notifications(
+    skip: int = 0,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    Retrieves all notification history for the authenticated user.
+    Retrieves notification history for the authenticated user with pagination.
     """
+    clamped_limit = min(max(1, limit), 100)
+    clamped_skip = max(0, skip)
     from sqlalchemy import or_
     notifications = db.query(Notification).filter(
         or_(
@@ -72,7 +79,7 @@ def get_notifications(current_user: User = Depends(get_current_user), db: Sessio
             Notification.subject_id == current_user.id,
             Notification.actor_id == current_user.id
         )
-    ).order_by(Notification.created_at.desc()).all()
+    ).order_by(Notification.created_at.desc()).offset(clamped_skip).limit(clamped_limit).all()
     return [
         {
             "id": n.id,
@@ -87,6 +94,7 @@ def get_notifications(current_user: User = Depends(get_current_user), db: Sessio
     ]
 
 @router.put("/{notification_id}/read")
+@router.post("/{notification_id}/read")
 def mark_notification_read(notification_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Marks a single notification as read.
@@ -102,7 +110,7 @@ def mark_notification_read(notification_id: int, current_user: User = Depends(ge
         )
     ).first()
     if not notification:
-        return {"status": "not_found"}
+        raise HTTPException(status_code=404, detail="Notification not found")
     
     notification.is_read = True
     db.commit()

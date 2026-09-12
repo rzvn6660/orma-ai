@@ -22,6 +22,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Add response interceptor for automatic session revocation / expiration handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clear sensitive session storage on 401 Unauthorized
+      localStorage.removeItem('orma_token');
+      localStorage.removeItem('orma_subject_id');
+      localStorage.removeItem('orma_user');
+      localStorage.removeItem('orma_last_tts_message');
+      localStorage.removeItem('orma_read_notification_ids');
+      sessionStorage.clear();
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('orma_unauthorized'));
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Centralized API services
 export const healthApi = {
   check: async () => {

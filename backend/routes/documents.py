@@ -42,6 +42,16 @@ async def upload_document(
     target_user_id = str(context["resolved_subject"]["id"])
     auth_user = context["authenticated_user"]
 
+    from services.rate_limiter import enforce_rate_limit
+    enforce_rate_limit(
+        db=db,
+        identifier=str(auth_user.id),
+        action="document_upload",
+        max_requests=10,
+        window_seconds=600,
+        error_message="Document upload rate limit exceeded. Please wait before uploading additional documents."
+    )
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="Uploaded file has no filename.")
 
@@ -102,6 +112,8 @@ async def upload_document(
 
 @router.get("", response_model=DocumentListResponse)
 def list_user_documents(
+    skip: int = 0,
+    limit: int = 50,
     context: dict = Depends(get_current_context),
     db: Session = Depends(get_db)
 ):
@@ -110,7 +122,11 @@ def list_user_documents(
     Strictly isolated: users can never see other users' documents.
     """
     target_user_id = str(context["resolved_subject"]["id"])
-    docs = db.query(RAGDocument).filter(RAGDocument.user_id == target_user_id).order_by(RAGDocument.created_at.desc()).all()
+    clamped_limit = min(max(1, limit), 100)
+    clamped_skip = max(0, skip)
+    query = db.query(RAGDocument).filter(RAGDocument.user_id == target_user_id).order_by(RAGDocument.created_at.desc())
+    total_count = query.count()
+    docs = query.offset(clamped_skip).limit(clamped_limit).all()
 
     detail_list = []
     for d in docs:
@@ -137,7 +153,47 @@ def list_user_documents(
             updated_at=d.updated_at
         ))
 
-    return DocumentListResponse(documents=detail_list, total_count=len(detail_list))
+    return DocumentListResponse(documents=detail_list, total_count=total_count)
+
+@router.get("/local-download")
+def local_signed_download(
+    bucket: str,
+    key: str,
+    expires: int,
+    sig: str
+):
+    """
+    Internal authenticated streaming endpoint for LocalStorageProvider HMAC-signed URLs.
+    Validates HMAC signature and timestamp before releasing file bytes.
+    """
+    if storage_service.provider_name != "local":
+        raise HTTPException(status_code=403, detail="Local download endpoint is not available.")
+
+    local_provider = storage_service
+    if not hasattr(local_provider, "verify_local_signed_url") or not local_provider.verify_local_signed_url(bucket, key, expires, sig):
+        raise HTTPException(status_code=403, detail="Invalid or expired download signature.")
+
+    try:
+        file_bytes = local_provider.get_file_bytes(bucket, key)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    ext = os.path.splitext(key)[1].lower()
+    mime_map = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
+    media_type = mime_map.get(ext, "application/octet-stream")
+    fname = os.path.basename(key)
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
+    )
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 def get_document_details(
@@ -332,45 +388,5 @@ def download_document(
         io.BytesIO(file_bytes),
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{safe_title}{ext}"'}
-    )
-
-@router.get("/local-download")
-def local_signed_download(
-    bucket: str,
-    key: str,
-    expires: int,
-    sig: str
-):
-    """
-    Internal authenticated streaming endpoint for LocalStorageProvider HMAC-signed URLs.
-    Validates HMAC signature and timestamp before releasing file bytes.
-    """
-    if storage_service.provider_name != "local":
-        raise HTTPException(status_code=403, detail="Local download endpoint is not available.")
-
-    local_provider = storage_service
-    if not hasattr(local_provider, "verify_local_signed_url") or not local_provider.verify_local_signed_url(bucket, key, expires, sig):
-        raise HTTPException(status_code=403, detail="Invalid or expired download signature.")
-
-    try:
-        file_bytes = local_provider.get_file_bytes(bucket, key)
-    except Exception:
-        raise HTTPException(status_code=404, detail="File not found.")
-
-    ext = os.path.splitext(key)[1].lower()
-    mime_map = {
-        ".pdf": "application/pdf",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-    }
-    media_type = mime_map.get(ext, "application/octet-stream")
-    fname = os.path.basename(key)
-    return StreamingResponse(
-        io.BytesIO(file_bytes),
-        media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'}
     )
 

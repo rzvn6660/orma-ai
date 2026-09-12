@@ -25,6 +25,7 @@ out/
 
 # Application data & persistent storage
 data/
+data_prod/
 uploads/
 backend/uploads/
 backend/temp_uploads/
@@ -65,3 +66,7 @@ backups/
 Untitled*
 .agents/
 skills-lock.json
+
+# Benchmark evaluation outputs
+backend/*_results.json
+backend/language_switching_verification.json

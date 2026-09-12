@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
@@ -18,6 +18,7 @@ import logging
 from services import google_auth_service
 from services.gmail_email_service import send_gmail_message
 from services.notification_preference_service import get_user_notification_preferences
+from services.rate_limiter import enforce_rate_limit, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,11 @@ def check_resend_otp_rate_limit(db: Session, email_key: str):
     if rate:
         if now - rate.window_start < timedelta(minutes=15):
             if rate.attempts >= 5:
+                retry_after = max(1, int(900 - (now - rate.window_start).total_seconds()))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many verification code requests. Please try again in 15 minutes."
+                    detail="Too many verification code requests. Please try again in 15 minutes.",
+                    headers={"Retry-After": str(retry_after)}
                 )
             rate.attempts += 1
         else:
@@ -56,9 +59,11 @@ def check_verify_otp_rate_limit(db: Session, email_key: str):
     if rate:
         if now - rate.window_start < timedelta(minutes=15):
             if rate.attempts >= 15:
+                retry_after = max(1, int(900 - (now - rate.window_start).total_seconds()))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many verification attempts. Please try again in 15 minutes."
+                    detail="Too many verification attempts. Please try again in 15 minutes.",
+                    headers={"Retry-After": str(retry_after)}
                 )
             rate.attempts += 1
         else:
@@ -80,9 +85,11 @@ def check_login_rate_limit(db: Session, email_key: str):
     if rate:
         if now - rate.window_start < timedelta(minutes=15):
             if rate.attempts >= 5:
+                retry_after = max(1, int(900 - (now - rate.window_start).total_seconds()))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many failed login attempts. Please try again in 15 minutes."
+                    detail="Too many failed login attempts. Please try again in 15 minutes.",
+                    headers={"Retry-After": str(retry_after)}
                 )
         else:
             # Window expired, reset
@@ -121,9 +128,11 @@ def check_forgot_password_rate_limit(db: Session, email_key: str):
     if rate:
         if now - rate.window_start < timedelta(minutes=15):
             if rate.attempts >= 3:
+                retry_after = max(1, int(900 - (now - rate.window_start).total_seconds()))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many password reset requests. Please try again in 15 minutes."
+                    detail="Too many password reset requests. Please try again in 15 minutes.",
+                    headers={"Retry-After": str(retry_after)}
                 )
             rate.attempts += 1
         else:
@@ -297,7 +306,16 @@ ORMA AI — Care. Connect. Remember.
 
 
 @router.post("/signup")
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
+def create_user(user: UserCreate, request: Request, db: Session = Depends(get_db)):
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(
+        db=db,
+        identifier=client_ip,
+        action="signup",
+        max_requests=10,
+        window_seconds=900,
+        error_message="Too many signup attempts from this network. Please try again in 15 minutes."
+    )
     raw_email = user.email or ""
     normalized_email = raw_email.strip().lower()
     logger.info(f"[AUTH-SIGNUP] email normalized = {normalized_email}")

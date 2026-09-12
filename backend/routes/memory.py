@@ -45,7 +45,8 @@ def get_memories(user_id: str, limit: int = 10, current_user: User = Depends(get
         else:
             raise HTTPException(status_code=403, detail="Access denied. Cannot access other users' memories.")
             
-    return memory_service.get_user_memories(db, user_id=user_id, limit=limit)
+    clamped_limit = min(max(1, limit), 50)
+    return memory_service.get_user_memories(db, user_id=user_id, limit=clamped_limit)
 
 @router.get("/{user_id}/context")
 def get_memory_context(user_id: str, query: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

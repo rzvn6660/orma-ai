@@ -49,12 +49,18 @@ def create_record(record: HealthRecordCreate, db: Session = Depends(get_db), ctx
     return db_record
 
 @router.get("/", response_model=List[HealthRecordResponse])
-def get_records(db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
+def get_records(
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(get_current_context)
+):
     subject = ctx['resolved_subject']
-    # Get all records for subject, ordered by timestamp desc
-    records = db.query(HealthRecord).filter(HealthRecord.subject_id == subject["id"]).order_by(HealthRecord.id.desc()).all()
+    clamped_limit = min(max(1, limit), 100)
+    clamped_skip = max(0, skip)
+    records = db.query(HealthRecord).filter(HealthRecord.subject_id == subject["id"]).order_by(HealthRecord.id.desc()).offset(clamped_skip).limit(clamped_limit).all()
     if not records: # Fallback to user_id for legacy rows
-        records = db.query(HealthRecord).filter(HealthRecord.user_id == subject["id"]).order_by(HealthRecord.id.desc()).all()
+        records = db.query(HealthRecord).filter(HealthRecord.user_id == subject["id"]).order_by(HealthRecord.id.desc()).offset(clamped_skip).limit(clamped_limit).all()
     return records
 
 @router.delete("/{record_id}")

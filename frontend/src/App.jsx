@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import Dashboard from './pages/Dashboard';
 import AuthFlow from './pages/AuthFlow';
 import LandingPage from './pages/LandingPage';
-import { authApi } from './services/api';
+import { authApi, chatApi } from './services/api';
 import { ReminderProvider } from './contexts/ReminderContext';
 import ReminderModal from './components/reminders/ReminderModal';
 import GlobalToast from './components/GlobalToast';
@@ -53,7 +53,7 @@ export default function App() {
              navigate(userData.role === 'caregiver' ? '/caregiver' : '/dashboard');
           }
         } catch (err) {
-          localStorage.removeItem('orma_token');
+          clearSessionState();
         }
       }
       setLoading(false);
@@ -65,9 +65,26 @@ export default function App() {
         setUser(prev => ({ ...prev, ...e.detail }));
       }
     };
+    const handleUnauthorized = () => {
+      setUser(null);
+      navigate('/');
+    };
     window.addEventListener('orma_user_updated', handleUserUpdated);
-    return () => window.removeEventListener('orma_user_updated', handleUserUpdated);
+    window.addEventListener('orma_unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('orma_user_updated', handleUserUpdated);
+      window.removeEventListener('orma_unauthorized', handleUnauthorized);
+    };
   }, []);
+
+  const clearSessionState = () => {
+    localStorage.removeItem('orma_token');
+    localStorage.removeItem('orma_subject_id');
+    localStorage.removeItem('orma_user');
+    localStorage.removeItem('orma_last_tts_message');
+    localStorage.removeItem('orma_read_notification_ids');
+    sessionStorage.clear();
+  };
 
   const handleLogin = async (userData) => {
     let finalUser = userData;
@@ -87,7 +104,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('orma_token');
+    try {
+      chatApi.resetSession();
+    } catch {
+      // ignore network errors on logout
+    }
+    clearSessionState();
     setUser(null);
     navigate('/');
   };

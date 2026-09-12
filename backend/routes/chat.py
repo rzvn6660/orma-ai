@@ -27,8 +27,11 @@ async def send_message(request_payload: ChatRequest, request: Request, db: Sessi
     Endpoint to send user text to the AI and get a conversational response.
     Uses authenticated user context & resolved subject from JWT.
     """
-    if not request_payload.message or not request_payload.message.strip():
+    clean_msg = request_payload.message.strip()
+    if not clean_msg:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+    if len(clean_msg) > 2000:
+        raise HTTPException(status_code=400, detail="Message exceeds maximum allowed length of 2000 characters.")
         
     try:
         actor = ctx.get('authenticated_user')
@@ -37,11 +40,22 @@ async def send_message(request_payload: ChatRequest, request: Request, db: Sessi
 
         user_id = str(actor.id) if actor else (request_payload.user_id or "default_user")
 
+        from services.rate_limiter import enforce_rate_limit
+        enforce_rate_limit(
+            db=db,
+            identifier=user_id,
+            action="chat_message",
+            max_requests=30,
+            window_seconds=60,
+            error_message="Chat message rate limit exceeded. Please wait a moment before sending more messages."
+        )
+
         # Sync recent history from client if available and session history is empty
         if request_payload.history and isinstance(request_payload.history, list):
+            history_subset = request_payload.history[-20:]
             existing = conversation_manager.get_history(user_id)
             if not existing:
-                for h_item in request_payload.history:
+                for h_item in history_subset:
                     if isinstance(h_item, dict) and "role" in h_item and "content" in h_item:
                         conversation_manager.add_message(user_id, h_item["role"], h_item["content"])
 

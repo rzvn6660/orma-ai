@@ -82,6 +82,17 @@ async def analyze_emergency(
     elder_name = elder_user.name or "Family Member"
     elder_phone = getattr(elder_user, "phone", None)
 
+    # Rate limit emergency alert creation to prevent alert spam / WebSocket flooding (max 5 per minute per elder)
+    from services.rate_limiter import enforce_rate_limit
+    enforce_rate_limit(
+        db=db,
+        identifier=str(elder_user.id),
+        action="emergency_alert",
+        max_requests=5,
+        window_seconds=60,
+        error_message="Emergency alert rate limit exceeded. Please wait a moment before sending another alert."
+    )
+
     # Persist EmergencyAlert in DB
     alert_id = str(uuid.uuid4())
     severity = request.severity or analysis.get("severity", "critical")

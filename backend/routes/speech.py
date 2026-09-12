@@ -36,6 +36,16 @@ async def transcribe_speech(
     if not audio:
         raise HTTPException(status_code=400, detail="No audio file provided")
 
+    from services.rate_limiter import enforce_rate_limit
+    enforce_rate_limit(
+        db=db,
+        identifier=str(current_user.id),
+        action="speech_transcribe",
+        max_requests=20,
+        window_seconds=60,
+        error_message="Audio transcription rate limit exceeded. Please wait a moment before uploading more audio."
+    )
+
     raw_filename = audio.filename or "recording.webm"
     ext = os.path.splitext(raw_filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTENSIONS:

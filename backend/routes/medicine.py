@@ -44,6 +44,17 @@ async def create_reminder(reminder: medicine_service.ReminderCreate, db: Session
     """
     actor = ctx['authenticated_user']
     subject = ctx['resolved_subject']
+
+    # Prevent reminder spam / scheduler exhaustion (max 50 active reminders per subject)
+    from models.medicine import MedicineReminder
+    active_count = db.query(MedicineReminder).filter(
+        (MedicineReminder.subject_id == subject["id"]) | (MedicineReminder.elder_id == subject["id"])
+    ).count()
+    if active_count >= 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum limit of 50 active medicine reminders reached for this subject. Please remove or complete old reminders before adding new ones."
+        )
     
     new_reminder = medicine_service.create_reminder(
         db=db, 
@@ -96,7 +107,9 @@ def read_reminders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     Retrieve medicine reminders for the active subject.
     """
     subject = ctx['resolved_subject']
-    return medicine_service.get_reminders_for_users(db, [subject["id"]], skip=skip, limit=limit)
+    clamped_limit = min(max(1, limit), 100)
+    clamped_skip = max(0, skip)
+    return medicine_service.get_reminders_for_users(db, [subject["id"]], skip=clamped_skip, limit=clamped_limit)
 
 @router.put("/{id}/taken", response_model=medicine_service.ReminderResponse)
 async def take_medicine(id: int, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
@@ -234,10 +247,24 @@ async def parse_voice_medicine(text: str = Form(...), current_user: User = Depen
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/parse-ocr")
-async def parse_ocr_medicine(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+async def parse_ocr_medicine(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Extracts text via OCR and parses medicine details for human verification.
     """
+    from services.rate_limiter import enforce_rate_limit
+    enforce_rate_limit(
+        db=db,
+        identifier=str(current_user.id),
+        action="medicine_ocr",
+        max_requests=15,
+        window_seconds=60,
+        error_message="OCR processing rate limit exceeded. Please wait a minute before uploading more medicine images."
+    )
+
     UPLOAD_DIR = "temp_uploads"
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     raw_filename = file.filename or "image.jpg"

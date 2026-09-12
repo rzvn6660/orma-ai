@@ -207,7 +207,11 @@ class LocalStorageProvider(BaseStorageProvider):
         """Validates the HMAC signature and expiration timestamp of a local signed URL."""
         if time.time() > expires_ts:
             return False
-        sig_payload = f"{bucket}:{sanitize_object_key(object_path)}:{expires_ts}".encode()
+        try:
+            clean_key = sanitize_object_key(object_path)
+        except Exception:
+            return False
+        sig_payload = f"{bucket}:{clean_key}:{expires_ts}".encode()
         expected = hmac.new(self._signing_secret, sig_payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
