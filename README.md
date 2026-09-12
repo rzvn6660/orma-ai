@@ -26,8 +26,7 @@
 
 The video walkthrough covers the problem ORMA_AI addresses, how the voice companion interacts with older adults, and how the underlying architecture handles memory, medication safety, and caregiver escalation.
 
-<!-- Add public intro/demo video link here -->
-> 📹 *Public demonstration and architecture walkthrough video coming soon. See the screenshots and architectural breakdown below for an end-to-end view of the system.*
+https://github.com/user-attachments/assets/3b10af6c-2fa7-4205-8ab2-df2a11f30448
 
 ---
 
