@@ -401,7 +401,7 @@ async def run_step3_adversarial_audit():
          patch.object(ai_manager.groq, 'generate_response', new_callable=AsyncMock) as mock_groq:
         
         mock_gemini.return_value = {"text": "", "provider": "gemini", "model": "gemini-3.5-flash", "success": False, "error": "HTTP 429 Rate Limit"}
-        mock_groq.return_value = {"text": "Groq Failover OK", "provider": "groq", "model": "groq/compound-mini", "success": True, "error": None}
+        mock_groq.return_value = {"text": "Groq Failover OK", "provider": "groq", "model": "qwen/qwen3.8-27b", "success": True, "error": None}
 
         res_fo = await ai_manager.generate("Test failover")
         fo_pass = res_fo.get("provider") == "groq" and res_fo.get("fallback_from") == "gemini"
@@ -412,7 +412,7 @@ async def run_step3_adversarial_audit():
          patch.object(ai_manager.groq, 'generate_response', new_callable=AsyncMock) as mock_groq:
         
         mock_gemini.return_value = {"text": "", "provider": "gemini", "model": "gemini-3.5-flash", "success": False, "error": "Service Outage"}
-        mock_groq.return_value = {"text": "", "provider": "groq", "model": "groq/compound-mini", "success": False, "error": "Timeout"}
+        mock_groq.return_value = {"text": "", "provider": "groq", "model": "qwen/qwen3.8-27b", "success": False, "error": "Timeout"}
 
         res_fb = await ai_manager.generate("Test both fail")
         fb_pass = res_fb.get("provider") == "fallback" and res_fb.get("model") == "rule-fallback-1.0"

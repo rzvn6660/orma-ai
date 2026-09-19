@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class GroqProvider(BaseAIProvider):
     """
-    Groq API Provider - Fast, free-tier hosted LLMs (e.g. llama-3.3-70b-versatile or compound-mini).
+    Groq API Provider - Fast, free-tier hosted LLMs (e.g. qwen/qwen3.8-27b).
     """
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key if api_key is not None else os.environ.get("GROQ_API_KEY", "")

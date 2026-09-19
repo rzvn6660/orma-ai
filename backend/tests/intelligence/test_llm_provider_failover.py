@@ -78,7 +78,7 @@ async def run_step1b_audit():
     print("REAL GROQ GENERATION")
     groq_p = GroqProvider()
     groq_real_success = False
-    groq_model = getattr(groq_p, "model", "groq/compound-mini")
+    groq_model = getattr(groq_p, "model", "qwen/qwen3.8-27b")
     groq_lat = 0
     groq_resp = ""
 
