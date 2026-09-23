@@ -30,15 +30,30 @@ class ModeResolver:
         low = text.lower().strip()
 
         # 1. SAFETY_DETERMINISTIC: Emergency, SOS, Pain, Caregiver Call, Medication Mutation
-        is_historical = any(w in low for w in ["yesterday", "last week", "a few days ago", "earlier this week", "last month", "previously", "past"])
+        is_historical = any(w in low for w in ["yesterday", "last year", "last month", "last week", "a few days ago", "earlier this week", "previously", "past", "football last week", "ഇന്നലെ", "കഴിഞ്ഞ"])
         is_emergency_inquiry = any(q in low for q in [
             "tell me about emergency", "how does emergency", "what is emergency", 
             "emergency support", "emergency feature", "emergency features", "information about emergency",
-            "emergency contact info", "emergency setup"
+            "emergency contact info", "emergency setup", "emergency contact phone", "emergency contact number",
+            "stored in my profile", "how emergency support works",
+            "എമർജൻസി ഫീച്ചറിനെക്കുറിച്ച്", "എമർജൻസി ഫീച്ചർ"
         ])
-        is_acute_emergency_keyword = any(w in low for w in ["call my caregiver", "call caregiver", "ambulance", "hospital", "fell and"]) or (("i fell" in low or "fell down" in low) and not is_historical)
+        malayalam_acute_emergency = any(w in low for w in [
+            "രക്ഷിക്കൂ", "നിലത്ത് വീണു", "ഞാൻ വീണു", "നെഞ്ചുവേദന", "കടുത്ത നെഞ്ചുവേദന",
+            "ആപത്ത്", "ആംബുലൻസ്", "എഴുന്നേൽക്കാൻ കഴിയുന്നില്ല", "സഹായം വേണം"
+        ])
+        english_acute_emergency = any(w in low for w in [
+            "call my caregiver", "call caregiver", "ambulance", "hospital", "fell and", "severe chest pain",
+            "cannot breathe", "can't breathe", "cant breathe", "breathing difficulty", "bleeding heavily",
+            "unconscious", "save me", "help me, i fell"
+        ])
+        is_acute_emergency_keyword = (
+            english_acute_emergency or
+            malayalam_acute_emergency or
+            (("i fell" in low or "fell down" in low) and not is_historical)
+        )
 
-        if (intent == "Emergency" or is_acute_emergency_keyword) and not is_emergency_inquiry and not (is_historical and "fell" in low):
+        if (intent == "Emergency" or is_acute_emergency_keyword) and not is_emergency_inquiry and not (is_historical and not ("can't get up" in low or "cannot get up" in low or "എഴുന്നേൽക്കാൻ കഴിയുന്നില്ല" in low)):
             return {
                 "mode": ExecutionMode.SAFETY_DETERMINISTIC,
                 "llm_required": False,

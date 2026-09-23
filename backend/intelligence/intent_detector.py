@@ -142,7 +142,16 @@ class IntentDetector:
         
         # Acute fall signal
         has_acute_fall = ("fell" in low or "വീണു" in low) and not is_historical and any(w in low for w in ["down", "can't get up", "cant get up", "help", "floor", "now", "just now", "എഴുന്നേൽക്കാൻ"])
-        is_acute_signal = any(w in low for w in acute_emergency_signals) or clean == "help" or has_acute_fall
+        is_visit_context = any(v in low for v in ["hospital visit", "clinic visit", "doctor visit", "eye hospital", "hospital appointment", "clinic appointment", "doctor appointment"])
+        has_acute_danger = any(s in low for s in [
+            "emergency", "ambulance", "fell", "വീണു", "can't get up", "cant get up",
+            "chest pain", "breathe", "breathing", "severe pain", "bleeding", "unconscious", "help me", "help!", "save me", "അടിയന്തിരം", "ആപത്ത്", "രക്ഷിക്കൂ"
+        ])
+        is_acute_signal = (
+            any(w in low for w in acute_emergency_signals if not (w == "hospital" and is_visit_context and not has_acute_danger))
+            or clean == "help"
+            or has_acute_fall
+        )
 
         if is_acute_signal and not is_emergency_inquiry and not (is_historical and "fell" in low):
             return "Emergency"
@@ -186,10 +195,15 @@ class IntentDetector:
 
         # 4. Farewell
         farewell_phrases = [
-            "bye", "goodbye", "see you", "good night", "bye orma", "goodbye orma",
-            "വിട", "ശുഭരാത്രി"
+            "bye", "goodbye", "bye bye", "see you", "see you later", "see you tomorrow",
+            "good night", "goodnight", "take care", "talk to you later", "bye orma", "goodbye orma",
+            "വിട", "ശുഭരാത്രി", "പിന്നെ കാണാം"
         ]
-        if clean in farewell_phrases:
+        is_farewell_match = (
+            clean in farewell_phrases or
+            any(clean.startswith(p + " ") or clean.endswith(" " + p) for p in farewell_phrases)
+        )
+        if is_farewell_match and not has_subsequent_question and not has_med_keyword:
             return "FAREWELL"
 
         # 5. Repetition Request ("Can you tell me that again?", "Repeat that", "Say that again")
@@ -313,12 +327,40 @@ class IntentDetector:
         if any(re.search(p, low) for p in med_creation_patterns) and not is_query_phrase:
             return "Medicine"
 
-        # 14. Schedule & Open-Ended Medication Query Patterns
+        # 14. Appointment Precedence Check (before generic medication schedule)
+        appointment_patterns = [
+            "appointment", "അപ്പോയിന്റ്മെന്റ്",
+            "clinic visit", "doctor visit", "hospital visit", "eye hospital visit",
+            "scheduled visit", "upcoming visit", "next visit", "hospital appointment",
+            "doctor appointment", "clinic appointment"
+        ]
+        if any(w in low for w in appointment_patterns):
+            return "Appointment"
+
+        # 15. Status Queries ("Did I take...", "Have I taken...", "Are all my night medicines taken?")
+        status_patterns = [
+            "did i take", "have i taken", "did i already take", "are all my", "already taken",
+            "pending", "still pending", "left", "remaining", "what's left", "whats left",
+            "still need", "need to take", "have to take", "something to take", "still have",
+            "what do i need", "what do i have", "finished with my", "done with my",
+            "completed", "all completed", "completed today",
+            "miss something", "missed something", "missed one", "did i miss",
+            "forget", "forgot", "forgotten", "did i forget",
+            "another dose", "dose coming up", "taken everything",
+            "supposed to", "got another dose",
+            "കഴിച്ചോ", "എടുത്തോ", "क्या ली", "लिया क्या", "ले ली", "ली हैं", "ले ली हैं", "هل تناولت"
+        ]
+        is_schedule_word = any(w in low for w in ["schedule", "scheduled", "ഷെഡ്യൂൾ", "what time", "what medicine", "what medicines"])
+        has_intake_status = any(w in low for w in ["taken", "pending", "completed", "forgot", "forget", "missed", "miss", "കഴിച്ചോ", "എടുത്തോ"])
+        if (any(p in low for p in status_patterns) or "taken" in low or "pending" in low) and not (is_schedule_word and not has_intake_status):
+            return "MEDICATION_STATUS"
+
+        # 16. Schedule & Open-Ended Medication Query Patterns
         has_med_word = any(w in low for w in ["medicine", "medicines", "medication", "medications", "pill", "pills", "tablet", "tablets", "dose", "മരുന്ന്", "ദവാ", "दवा"])
         has_sched_query = any(w in low for w in [
             "morning", "afternoon", "evening", "night", "tonight", "today", "tomorrow", 
             "next", "upcoming", "schedule", "time", "when", "what", "which", "need", "want", "take",
-            "ഏതാണ്", "എപ്പോഴാണ്", "വേണം"
+            "ഏതാണ്", "എപ്പോഴാണ്", "വേണം", "ഷെഡ്യൂൾ"
         ])
 
         schedule_patterns = [
@@ -333,17 +375,6 @@ class IntentDetector:
         ]
         if (has_med_word and has_sched_query) or any(p in low for p in schedule_patterns):
             return "MEDICATION_SCHEDULE"
-
-        # 15. Status Queries ("Did I take...", "Have I taken...", "Are all my night medicines taken?")
-        status_patterns = [
-            "did i take", "have i taken", "are all my", "is my medicine", "is my dose", "is my pill", "is my tablet", "already taken", "pending", "left", "remaining",
-            "still need", "need to take", "have to take", "something to take", "still have", "what do i need", "what do i have", "finished with my", "done with my",
-            "miss something", "missed something", "missed one", "another dose", "dose coming up", "taken everything",
-            "supposed to", "still pending", "got another dose",
-            "കഴിച്ചോ", "എടുത്തോ", "क्या ली", "लिया क्या", "ले ली", "ली हैं", "ले ली हैं", "هل تناولت"
-        ]
-        if any(p in low for p in status_patterns) or "taken" in low or "pending" in low:
-            return "MEDICATION_STATUS"
 
         # 16. RAG Document Queries
         rag_patterns = [

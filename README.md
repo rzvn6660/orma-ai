@@ -37,7 +37,7 @@ https://github.com/user-attachments/assets/3b10af6c-2fa7-4205-8ab2-df2a11f30448
 | **What It Is** | An assistive, voice-first AI memory and daily-living companion prototype for older adults. |
 | **Who It Is For** | Aging seniors managing daily routines and medications, and designated family caregivers needing peace of mind. |
 | **The Real-World Problem** | Small fonts, complex nested menus, multi-dose medication regimens, cognitive fatigue, and language barriers cause friction, missed doses, and safety risks for seniors. |
-| **Why Technically Interesting** | Not an LLM wrapper: combines an audio preprocessing pipeline, multilingual Whisper ASR, sub-second intent routing that offloads safety-critical workflows (medications, emergency dispatch) to deterministic backend services, an entity-extracting memory engine (OCME), grounded medical document RAG, and dual-LLM automated failover. |
+| **Why Technically Interesting** | Not an LLM wrapper: combines an audio preprocessing pipeline, multilingual Whisper ASR, deterministic intent and safety routing paths designed to avoid unnecessary LLM calls (Phase 4 measured 169.1 ms median orchestration latency across 25 benchmark runs), an entity-extracting memory engine (OCME), grounded medical document RAG, and dual-LLM automated failover. |
 | **Where to See It Working** | **[Live Web Application](https://app-orma-ai.onrender.com)** • **[Interactive API Docs](https://orma-ai.onrender.com/docs)** • **[Video Walkthrough](#project-overview-video)** |
 
 ---
@@ -54,7 +54,7 @@ A concise summary of verified system capabilities in ORMA_AI `v0.1.0-beta.1`:
 * **Emergency Safety Routing**: Life-safety keywords (*"Help me"*, *"Call doctor"*, *"I fell"*) completely bypass generative LLM reasoning to invoke immediate deterministic caregiver alerts.
 * **Caregiver Support**: Role-based access control pairing senior accounts with family caregivers via expiring pairing codes (8-character alphanumeric format: XXXX-0000), providing adherence telemetry and notifications.
 * **Multi-Tenant Security**: Per-user database isolation, database-backed rate limiting per IP and action, Bcrypt password hashing, expiring signed JWTs, and secure Gmail API email verification.
-* **Automated Testing & CI**: Over 420 automated unit and integration tests (451 backend tests passing in CI) and frontend static analysis running on GitHub Actions.
+* **Automated Testing & CI**: 451 backend tests passing in the latest regression run and frontend static analysis running on GitHub Actions.
 
 ---
 
@@ -128,7 +128,7 @@ ORMA_AI separates high-speed accessible frontend interactions from a stateful, r
    * `SAFETY_DETERMINISTIC`: Emergency phrases bypass external APIs to invoke immediate alerts.
    * `LLM_WITH_TOOL`: Grounded synthesis combining database state with contextual LLM guidance.
    * `CONVERSATIONAL`: Empathetic dialogue for memory recall and general companionship.
-4. **Dual-LLM Resilient Failover**: Primary reasoning powered by Google Gemini (`gemini-1.5-flash`), backed by Groq (`llama-3.3-70b-versatile`) for automatic sub-second failover during provider degradation.
+4. **Dual-LLM Resilient Failover**: Primary reasoning powered by Google Gemini (`gemini-1.5-flash`), backed by Groq (`llama-3.3-70b-versatile`) for automatic dual-provider failover during provider degradation.
 5. **Persistence & Storage**: Multi-tenant PostgreSQL (with SQLite 3 WAL fallback), maintaining strict row-level isolation and transactional integrity.
 
 For in-depth architecture diagrams, sequence charts, and component breakdowns, see [`docs/architecture.md`](docs/architecture.md).
@@ -168,7 +168,7 @@ ORMA_AI is built as a complete AI engineering and system-design project, featuri
 
 7. **Automated CI & Deterministic Test Isolation**:
    - Executes continuous integration via GitHub Actions across every push and pull request.
-   - Maintains an automated backend test suite with over 420 unit and integration tests (451 backend tests passing in CI) with dedicated rate-limit isolation fixtures to guarantee test determinism.
+   - Maintains an automated backend test suite with 451 backend tests passing in the latest regression run, with dedicated rate-limit isolation fixtures to guarantee test determinism.
 
 ---
 
@@ -244,6 +244,121 @@ The interface adapts cleanly to mobile devices, preserving large touch targets a
 
 ---
 
+## 🧪 Evaluation & Benchmark Results
+
+ORMA_AI was evaluated through a rigorous, multi-phase technical benchmark covering intent routing, unseen out-of-distribution generalization, deterministic emergency dispatch, orchestration latency, and full-suite regression safety.
+
+### Evaluation Workflow Pipeline
+
+```mermaid
+flowchart LR
+    P2[Phase 2 Baseline] --> P3[Phase 3 Routing] --> P4[Phase 4 Surgical] --> P5[Phase 5 Generalization] --> REV[Evidence Review]
+```
+
+---
+
+### 1. Intent Routing Benchmark (Fixed 70-Query Benchmark)
+
+The official benchmark measures classification across **70 ground-truth labeled utterances** in **14 primary intent classes** (English and Malayalam). Phase 4 surgical rule ordering and precedence guards raised overall accuracy from **58.57% to 80.00%** (+21.43 percentage points) with zero regressions across any intent class.
+
+```mermaid
+graph LR
+    P2["Phase 2<br/><b>58.57%</b>"] --> P3["Phase 3<br/><b>65.71%</b>"] --> P4["Phase 4<br/><b>80.00%</b>"]
+
+    style P2 fill:#fee2e2,stroke:#ef4444,stroke-width:1px,color:#7f1d1d
+    style P3 fill:#fef3c7,stroke:#f59e0b,stroke-width:1px,color:#78350f
+    style P4 fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#14532d
+```
+
+| Metric | Phase 2 Baseline | Phase 3 Routing | Phase 4 Surgical | Absolute Gain (P2 → P4) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Accuracy** | 58.57% (41/70) | 65.71% (46/70) | **80.00% (56/70)** | **+21.43 pp** (+15 queries) |
+| **Macro Precision** | 70.81% | 76.07% | **88.15%** | **+17.34 pp** |
+| **Macro Recall** | 53.93% | 60.60% | **75.36%** | **+21.43 pp** |
+| **Macro F1 Score** | 51.80% | 60.34% | **74.57%** | **+22.77 pp** |
+
+#### Targeted Intent Classes Recall
+- **`FAREWELL`**: 0.0% → **100.0%** (compound sentence prefix/suffix handling)
+- **`Appointment`**: 0.0% → **100.0%** (visit terminology and non-emergency hospital visit separation)
+- **`MEDICATION_STATUS`**: 16.7% → **100.0%** (completion verbs: completed, missed, forgot)
+- **`MEDICATION_SCHEDULE`**: 83.3% → **100.0%** (Phase 3 status collision regression resolved)
+
+---
+
+### 2. Out-of-Distribution Generalization Evaluation
+
+To test whether Phase 4 improvements generalized beyond the fixed benchmark, a separate dataset of **110 unseen, natural-language queries** was evaluated.
+
+```mermaid
+graph TD
+    subgraph Benchmark_Sets ["Evaluation Datasets"]
+        B1["<b>Official Benchmark</b><br/>70 Labeled Queries<br/>Accuracy: <b>80.00%</b> | Macro F1: <b>74.57%</b>"]
+        B2["<b>Unseen Generalization Set</b><br/>110 Out-of-Distribution Queries<br/>Accuracy: <b>62.73%</b> | Macro F1: <b>59.31%</b>"]
+    end
+
+    style B1 fill:#dbeafe,stroke:#1d4ed8,stroke-width:1.5px,color:#0c2556
+    style B2 fill:#ede9fe,stroke:#6d28d9,stroke-width:1.5px,color:#2e1065
+```
+
+| Metric | Official Benchmark (70 Queries) | Unseen Evaluation (110 Queries) |
+| :--- | :---: | :---: |
+| **Overall Accuracy** | **80.00%** (56/70) | **62.73%** (69/110) |
+| **Macro Precision** | **88.15%** | **74.58%** |
+| **Macro Recall** | **75.36%** | **58.53%** |
+| **Macro F1 Score** | **74.57%** | **59.31%** |
+
+#### Target Generalization vs. Remaining Weaknesses
+- **Targeted improvements generalized strongly**: `FAREWELL` achieved **100.0%** recall on unseen compound phrases, `Appointment` achieved **87.5%**, `MEDICATION_SCHEDULE` achieved **88.9%**, and `MEDICATION_STATUS` achieved **77.8%**.
+- **Why unseen accuracy is 62.73% (not 80%)**: The drop in overall accuracy stems from unaddressed brittle matching in ancillary intent classes: `ACKNOWLEDGMENT` (0.0%), `CONVERSATION_RECALL` (0.0%), and conversational `Medicine` narration (14.3%), which fall back to general conversation when utterances become long and compound.
+
+---
+
+### 3. Emergency Routing Benchmark
+
+ORMA_AI employs a deterministic life-safety path that bypasses generative LLM reasoning for acute safety indicators.
+
+> [!CAUTION]
+> **Clinical & Regulatory Disclaimer**: This is a limited synthetic software routing benchmark measuring deterministic keyword dispatch on a 40-case dataset. **It is NOT clinical validation, medical device certification, or a guarantee of real-world emergency recognition.** In an acute medical emergency, contact certified emergency services (911 or 112) immediately.
+
+| Metric | Phase 2 Baseline | Phase 3 Routing | Phase 4 Preserved |
+| :--- | :---: | :---: | :---: |
+| **Accuracy** | 72.5% | **100.0%** | **100.0%** |
+| **Precision** | 66.7% | **100.0%** | **100.0%** |
+| **Recall** | 53.3% | **100.0%** | **100.0%** |
+| **F1 Score** | 59.3% | **100.0%** | **100.0%** |
+| **False Positives (FP) / Negatives (FN)** | FP: 4, FN: 7 | **FP: 0, FN: 0** | **FP: 0, FN: 0** |
+
+---
+
+### 4. Orchestration Latency Profile
+
+Measured across **25 benchmark interaction runs** covering deterministic database lookups, emergency bypasses, and conversational synthesis.
+
+> [!NOTE]
+> Latency figures represent **observed benchmark measurements** across 25 runs under local test conditions. They are benchmark observations, not a universal SLA or total voice-to-ear turnaround guarantee.
+
+| Latency Metric | Phase 2 Baseline | Phase 3 Routing | Phase 4 Benchmark |
+| :--- | :---: | :---: | :---: |
+| **Median (p50)** | 550.6 ms | 216.3 ms | **169.1 ms** |
+| **90th Percentile (p90)** | 1012.6 ms | 631.0 ms | **623.5 ms** |
+| **95th Percentile (p95)** | 1067.5 ms | 8502.4 ms | **1050.5 ms** |
+| **Mean** | 742.8 ms | 987.6 ms | **241.2 ms** |
+| **Maximum** | 6615.7 ms | 12467.8 ms | **1561.2 ms** |
+
+Deterministic rule routing in `intent_detector.py` executes in sub-millisecond time (p50: `0.7 ms`, mean: `0.9 ms`), ensuring zero overhead before dispatching to deterministic services or LLM synthesis.
+
+---
+
+### 5. Regression Testing & Benchmark Integrity
+
+- **Automated Regression Suite**: **451 backend tests passed, 0 failed, 1 warning** in ~84–99 seconds.
+- **Benchmark Integrity**: The official benchmark dataset, ground-truth labels, and scoring logic were strictly preserved and never modified during routing iterations.
+- **Experimental RAG Notice**: Medical document retrieval achieved Hit@1 of `92.3%` (12/13) and MRR of `0.9231` with 100% out-of-scope refusal on internal tests. Because the active embedding provider is a local heuristic hash embedder (`LocalSemanticEmbeddingProvider`), this retrieval metric is labeled **experimental / non-production**.
+
+See [docs/evaluation.md](docs/evaluation.md) for the detailed methodology, benchmark definitions, per-class confusion matrices, limitations, and reproducibility instructions.
+
+---
+
 ## ORMA_AI Beta 1
 
 ORMA_AI is currently in **Beta 1** (`v0.1.0-beta.1`). This release is an assistive technology prototype intended for evaluation, user feedback, demonstration, and continued open-source development. It is not currently offered as a certified medical service.
@@ -266,7 +381,7 @@ ORMA_AI maintains strict automated testing across the codebase to ensure system 
 
 > **ORMA_AI Beta 1 completed Phases 2A–2H security testing. All confirmed findings identified within the tested scope were remediated and retested, with no unresolved confirmed vulnerabilities remaining within that scope.**
 
-* **Automated Backend Tests**: Over 420 automated unit and integration tests (451 backend tests passing in CI) covering authentication, voice audio pipelines, intelligence orchestrator, tool routing, medication scheduling, and database access.
+* **Automated Backend Tests**: 451 backend tests passing in the latest regression run, covering authentication, voice audio pipelines, intelligence orchestrator, tool routing, medication scheduling, and database access.
 * **Frontend Static Analysis**: Clean `npm run lint` execution with 0 errors and 0 warnings.
 * **Production Build Validation**: Clean Vite production build execution.
 * **Continuous Integration**: Automated test suite and lint checks execute via GitHub Actions on every push and pull request.
@@ -368,6 +483,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 Detailed design documents, specifications, and architecture guides are available in [`docs/`](docs/):
 
+* [**Evaluation & Benchmark Report**](docs/evaluation.md) — Comprehensive benchmark methodology, multi-phase progression, generalization results, latency analysis, and limitations.
 * [**System Architecture**](docs/architecture.md) — Comprehensive component architecture, data flows, and concurrency handling.
 * [**Authentication & Lifecycle**](docs/authentication.md) — Token lifecycles, password resets, and Gmail API integration.
 * [**Multilingual Voice Architecture**](docs/voice.md) — Audio preprocessing, language detection, and speech synthesis.
