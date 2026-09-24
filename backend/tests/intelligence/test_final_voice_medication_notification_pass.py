@@ -1,7 +1,7 @@
 import pytest
 import os
 import sys
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from unittest.mock import patch, MagicMock, AsyncMock
 
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -84,7 +84,7 @@ def test_explicit_taken_confirmation_it(db, test_user):
     # Verify authoritative database record
     db.refresh(med)
     assert med.taken_at is not None
-    assert med.taken_at.date() == date.today()
+    assert med.taken_at.date() == datetime.now(timezone.utc).date()
 
 def test_taken_confirmation_that_medicine(db, test_user):
     """User says 'I took that medicine'."""
