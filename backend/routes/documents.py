@@ -68,7 +68,8 @@ async def upload_document(
     try:
         file_bytes = await file.read()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {e}")
+        logger.error(f"[DocumentUploadRouter] Failed to read uploaded file: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to read uploaded file.")
 
     if len(file_bytes) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty (0 bytes).")
@@ -108,7 +109,7 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as proc_err:
         logger.error(f"[DocumentUploadRouter] Ingestion failure: {proc_err}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Document processing failed: {str(proc_err)}")
+        raise HTTPException(status_code=500, detail="Document processing failed due to an internal error.")
 
 @router.get("", response_model=DocumentListResponse)
 def list_user_documents(

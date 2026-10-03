@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.tsgp import TSGPAuditLog, PolicyConfiguration
 from models.user import User
-from dependencies import get_current_user
+from dependencies import get_current_user, get_current_context
 from safety.governance_service import governance_service
 
 logger = logging.getLogger(__name__)
@@ -13,9 +13,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tsgp", tags=["Trust, Safety & Clinical Governance"])
 
 @router.get("/audit")
-def get_safety_audits(limit: int = 50, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Safety Audit Logs for authenticated user."""
-    return db.query(TSGPAuditLog).order_by(TSGPAuditLog.created_at.desc()).limit(limit).all()
+def get_safety_audits(
+    limit: int = 50,
+    ctx: dict = Depends(get_current_context),
+    db: Session = Depends(get_db)
+):
+    """Safety Audit Logs for authenticated user or authorized subject."""
+    subject_id = str(ctx["resolved_subject"]["id"])
+    clamped_limit = min(max(1, limit), 100)
+    from sqlalchemy import or_
+    filters = [TSGPAuditLog.user_id == subject_id]
+    if subject_id.isdigit():
+        filters.append(TSGPAuditLog.user_id == int(subject_id))
+    return db.query(TSGPAuditLog).filter(
+        or_(*filters)
+    ).order_by(TSGPAuditLog.created_at.desc()).limit(clamped_limit).all()
 
 @router.post("/evaluate-request")
 def evaluate_request(request_text: str, intent: str, role: str = "user", current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from database import get_db
 from dependencies import get_current_context
-from memory.memory_models import OCMEMemoryResponse, OCMEMemory
+from memory.memory_models import OCMEMemoryResponse, OCMEMemory, OCMEMemoryUpdate
 from memory.memory_store import memory_store
 
 logger = logging.getLogger(__name__)
@@ -69,14 +69,21 @@ def get_memory(memory_id: int, db: Session = Depends(get_db), ctx: dict = Depend
     return memory
 
 @router.put("/{memory_id}", response_model=OCMEMemoryResponse)
-def update_memory(memory_id: int, updates: dict, db: Session = Depends(get_db), ctx: dict = Depends(get_current_context)):
+def update_memory(
+    memory_id: int,
+    payload: OCMEMemoryUpdate,
+    db: Session = Depends(get_db),
+    ctx: dict = Depends(get_current_context)
+):
     user_id = ctx['resolved_subject']['id']
     memory = memory_store.get_memory_by_id(db, user_id, memory_id)
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
         
-    for key, val in updates.items():
-        if hasattr(memory, key) and key not in ["id", "user_id"]:
+    update_data = payload.dict(exclude_unset=True)
+    ALLOWED_FIELDS = {"category", "title", "value", "importance", "visibility"}
+    for key, val in update_data.items():
+        if key in ALLOWED_FIELDS and hasattr(memory, key):
             setattr(memory, key, val)
             
     db.commit()

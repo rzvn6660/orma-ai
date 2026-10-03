@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from intelligence.orchestrator import orchestrator
 from intelligence.conversation_manager import conversation_manager
 from dependencies import get_current_context
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class ChatRequest(BaseModel):
@@ -88,9 +90,8 @@ async def send_message(request_payload: ChatRequest, request: Request, db: Sessi
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"[CHAT ERROR] send_message failed: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        logger.error(f"[CHAT ERROR] send_message failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process chat message.")
 
 @router.post("/reset")
 @router.post("/clear")

@@ -54,6 +54,13 @@ class OCMEMemoryCreate(BaseModel):
     trust_score: float = 50.0
     expires_at: Optional[datetime.datetime] = None
 
+class OCMEMemoryUpdate(BaseModel):
+    category: Optional[str] = None
+    title: Optional[str] = None
+    value: Optional[str] = None
+    importance: Optional[int] = None
+    visibility: Optional[str] = None
+
 class OCMEMemoryResponse(OCMEMemoryCreate):
     id: int
     created_at: datetime.datetime

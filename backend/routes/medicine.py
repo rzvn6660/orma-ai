@@ -5,6 +5,7 @@ from typing import List, Optional
 import os
 import shutil
 import uuid
+import logging
 from database import get_db
 from services import medicine_service
 from services import scheduler_service
@@ -14,6 +15,7 @@ from dependencies import get_current_user, get_elderly_user, get_current_context
 from models.user import User, CaregiverRelationship
 from services.websocket_manager import manager
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class SnoozePayload(BaseModel):
@@ -244,7 +246,8 @@ async def parse_voice_medicine(text: str = Form(...), current_user: User = Depen
         parsed = await parse_medicine_text(text)
         return {"status": "success", "data": parsed}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[MEDICINE ERROR] parse_voice failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to parse medicine from voice input.")
 
 @router.post("/parse-ocr")
 async def parse_ocr_medicine(
@@ -293,7 +296,8 @@ async def parse_ocr_medicine(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"[MEDICINE ERROR] parse_ocr failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to parse medicine from image.")
     finally:
         if os.path.exists(file_path):
             try:

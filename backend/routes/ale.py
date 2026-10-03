@@ -42,16 +42,40 @@ def get_behaviour_profile(user_id: str, current_user: User = Depends(get_current
         db.refresh(profile)
     return profile
 
+from pydantic import BaseModel
+
+class BehaviourProfileUpdate(BaseModel):
+    preferred_language: Optional[str] = None
+    speaking_speed: Optional[str] = None
+    conversation_style: Optional[str] = None
+    reminder_behaviour: Optional[str] = None
+    preferred_reminder_times: Optional[dict] = None
+    wake_time: Optional[str] = None
+    sleep_time: Optional[str] = None
+    preferred_contact_method: Optional[str] = None
+    accessibility_preferences: Optional[dict] = None
+
 @router.put("/profile/{user_id}")
-def update_behaviour_profile(user_id: str, updates: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_behaviour_profile(
+    user_id: str,
+    payload: BehaviourProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Manually edit or remove learned preferences."""
     _verify_user_access(current_user, user_id, db)
     profile = db.query(BehaviourProfile).filter(BehaviourProfile.user_id == user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
         
-    for k, v in updates.items():
-        if hasattr(profile, k) and k not in ["id", "user_id"]:
+    ALLOWED_FIELDS = {
+        "preferred_language", "speaking_speed", "conversation_style",
+        "reminder_behaviour", "preferred_reminder_times", "wake_time",
+        "sleep_time", "preferred_contact_method", "accessibility_preferences"
+    }
+    update_data = payload.dict(exclude_unset=True)
+    for k, v in update_data.items():
+        if k in ALLOWED_FIELDS and hasattr(profile, k):
             setattr(profile, k, v)
             
     db.commit()

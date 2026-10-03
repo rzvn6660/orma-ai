@@ -139,7 +139,8 @@ async def transcribe_speech(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+        logger.error(f"[SPEECH ERROR] Transcription failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Audio transcription failed. Please try again.")
     finally:
         # Clean up the temporary file
         if os.path.exists(file_path):
