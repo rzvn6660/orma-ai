@@ -5,7 +5,7 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from models.owe import WorkflowAuditLog, ApprovalRequest
 from models.user import User, CaregiverRelationship
 from dependencies import get_current_user, SECRET_KEY, ALGORITHM
@@ -102,13 +102,16 @@ async def test_trigger_workflow(event_name: str, action: str = "create", current
     return {"status": "success", "message": f"Triggered {event_name}"}
 
 @router.get("/events")
-async def sse_events(request: Request, db: Session = Depends(get_db)):
+async def sse_events(request: Request):
     """
     Authenticated Server-Sent Events endpoint for dashboard automatic updates.
+    Uses a short-lived database session during handshake to avoid connection pool exhaustion.
     """
     token = request.query_params.get("token") or request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication token required for SSE stream.")
+    
+    db = SessionLocal()
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
@@ -117,8 +120,12 @@ async def sse_events(request: Request, db: Session = Depends(get_db)):
         user = db.query(User).filter(User.id == user_id).first()
         if not user or (payload.get("ver") and payload.get("ver") != user.token_version):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials or revoked session")
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    finally:
+        db.close()
 
     async def event_generator():
         queue = asyncio.Queue()

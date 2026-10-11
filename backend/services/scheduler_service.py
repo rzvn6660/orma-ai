@@ -24,6 +24,19 @@ triggered_today = set()
 
 main_app_loop = None
 
+class ReminderSnapshot:
+    """Detached snapshot of reminder item attributes for thread-safe cross-loop dispatch."""
+    def __init__(self, item, item_type):
+        self.id = getattr(item, "id", None)
+        self.event_type = getattr(item, "event_type", item_type)
+        self.title = getattr(item, "title", None)
+        self.description = getattr(item, "description", None)
+        self.medicine_name = getattr(item, "medicine_name", None)
+        self.dosage = getattr(item, "dosage", None)
+        self.reminder_time = getattr(item, "reminder_time", None)
+        self.elder_id = getattr(item, "elder_id", None) or getattr(item, "subject_id", None)
+        self.subject_id = getattr(item, "subject_id", None) or getattr(item, "elder_id", None)
+
 def process_event(db, item, item_type):
     now_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
     tz_name = item.timezone if item.timezone else "UTC"
@@ -75,15 +88,17 @@ def process_event(db, item, item_type):
             else:
                 logger.info(f"Triggering reminder for {item.title} in {tz_name}")
             
+            # Create detached snapshot before committing to avoid cross-thread session access or expired attribute reads
+            snapshot = ReminderSnapshot(item, item_type)
             item.reminder_triggered_at = datetime.utcnow()
             item.is_caregiver_notified = False
             item.caregiver_notified_at = None
             db.commit()
             
-            # Route through the scalable notification manager safely on the main event loop
+            # Route through notification manager on main event loop without sharing scheduler db session
             if main_app_loop and main_app_loop.is_running():
                 asyncio.run_coroutine_threadsafe(
-                    notification_manager.notify_user(db, item, channels=['in_app', 'browser_push', 'voice']),
+                    notification_manager.notify_user(db=None, reminder=snapshot, channels=['in_app', 'browser_push', 'voice']),
                     main_app_loop
                 )
     
@@ -95,6 +110,7 @@ def process_event(db, item, item_type):
         trig_utc = triggered_at if triggered_at.tzinfo else pytz.utc.localize(triggered_at)
         time_diff = now_utc - trig_utc
         if 1800 < time_diff.total_seconds() < 86400:
+            snapshot = ReminderSnapshot(item, item_type)
             item.is_caregiver_notified = True
             item.caregiver_notified_at = datetime.utcnow()
             item.adherence_pattern_flags = "missed"
@@ -105,7 +121,7 @@ def process_event(db, item, item_type):
             import asyncio
             if main_app_loop and main_app_loop.is_running():
                 asyncio.run_coroutine_threadsafe(
-                    notification_manager.escalate_missed_reminder(db, item),
+                    notification_manager.escalate_missed_reminder(db=None, reminder=snapshot),
                     main_app_loop
                 )
 

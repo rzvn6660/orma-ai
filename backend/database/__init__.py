@@ -65,12 +65,17 @@ if is_sqlite:
 else:
     # PostgreSQL configuration for Supabase production
     try:
+        pool_size = int(os.getenv("DB_POOL_SIZE", "3"))
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "2"))
+        pool_timeout = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+        pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "300"))
         engine = create_engine(
             SQLALCHEMY_DATABASE_URL,
             pool_pre_ping=True,
-            pool_recycle=300,
-            pool_size=1,
-            max_overflow=2
+            pool_recycle=pool_recycle,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout
         )
     except ModuleNotFoundError as e:
         logger.warning(f"[DATABASE] PostgreSQL driver '{e.name}' not installed. Falling back to local SQLite: {DB_PATH}")
@@ -88,7 +93,7 @@ Base = declarative_base()
 def ensure_schema_migrations():
     """Ensures SQLite tables contain all columns required by updated SQLAlchemy models."""
     if engine.dialect.name != "sqlite":
-        logger.info("[DATABASE] PostgreSQL dialect active; schema managed via SQLAlchemy Base.metadata.create_all.")
+        logger.info("[DATABASE] PostgreSQL dialect active; runtime auto-migrations bypassed. Schema is managed via supabase/migrations/.")
         return
 
     import sqlite3

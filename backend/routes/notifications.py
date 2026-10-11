@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, s
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from database import get_db
+from database import get_db, SessionLocal
 from models.notification import Notification
 from models.user import User
 from dependencies import get_current_user, SECRET_KEY, ALGORITHM
@@ -138,12 +138,12 @@ def mark_all_notifications_read(current_user: User = Depends(get_current_user), 
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: str,
-    token: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    token: Optional[str] = Query(None)
 ):
     """
     Authenticated WebSocket endpoint for real-time notification streams.
     Strictly verifies JWT authentication, user identity binding, and token versioning.
+    Uses a short-lived database session during handshake to avoid connection pool exhaustion.
     """
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -156,17 +156,21 @@ async def websocket_endpoint(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        user = db.query(User).filter(User.id == token_sub).first()
-        if not user or not getattr(user, "is_active", True):
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        # Check token version revocation
-        token_ver = payload.get("ver")
-        if getattr(user, "token_version", None) is not None:
-            if token_ver is None or token_ver != user.token_version:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == token_sub).first()
+            if not user or not getattr(user, "is_active", True):
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
+
+            # Check token version revocation
+            token_ver = payload.get("ver")
+            if getattr(user, "token_version", None) is not None:
+                if token_ver is None or token_ver != user.token_version:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
+        finally:
+            db.close()
 
     except Exception:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

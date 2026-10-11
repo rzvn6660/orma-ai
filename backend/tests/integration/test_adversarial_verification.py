@@ -314,9 +314,10 @@ def test_attack_websocket_subscription_theft(red_team_environment):
             pass
 
 
-def test_attack_wakeword_payload_limits():
+def test_attack_wakeword_payload_limits(red_team_environment):
     """Wakeword WebSocket must disconnect on oversized binary frame (>64KB)."""
-    with client.websocket_connect("/api/wakeword/ws") as ws:
+    token_a = red_team_environment["user_a"]
+    with client.websocket_connect(f"/api/wakeword/ws?token={token_a}") as ws:
         # Initial greeting
         msg = ws.receive_json()
         assert msg["event"] == "engine_ready"

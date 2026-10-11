@@ -25,26 +25,34 @@ import models.tsgp # Trust, Safety & Clinical Governance Platform models
 import models.emergency # Emergency Alert models
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+# In SQLite mode (local development & automated tests), auto-generate tables and run patches.
+# In PostgreSQL mode (production Supabase), runtime create_all() is strictly bypassed;
+# schema evolution and security policies are managed via supabase/migrations/.
+if engine.dialect.name == "sqlite":
+    Base.metadata.create_all(bind=engine)
 
-def run_db_migrations():
-    if engine.dialect.name != "sqlite":
-        return
-    import sqlite3
-    try:
-        from database import DB_PATH
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(users)")
-        cols = [c[1] for c in cur.fetchall()]
-        if "phone" not in cols:
-            cur.execute("ALTER TABLE users ADD COLUMN phone TEXT;")
-            conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"[MIGRATION WARNING]: {e}")
+    def run_db_migrations():
+        import sqlite3
+        try:
+            from database import DB_PATH
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(users)")
+            cols = [c[1] for c in cur.fetchall()]
+            if "phone" not in cols:
+                cur.execute("ALTER TABLE users ADD COLUMN phone TEXT;")
+                conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[MIGRATION WARNING]: {e}")
 
-run_db_migrations()
+    run_db_migrations()
+else:
+    import logging
+    logging.getLogger("main").info(
+        "[DATABASE] PostgreSQL dialect active; runtime Base.metadata.create_all() bypassed. "
+        "Schema is managed via version-controlled migrations in supabase/migrations/."
+    )
 
 import asyncio
 

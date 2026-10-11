@@ -6,7 +6,7 @@ from typing import Optional
 import jwt
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, UploadFile, File, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from models.user import User
 from dependencies import get_current_user, SECRET_KEY, ALGORITHM
 from services.wakeword_service import wakeword_service
@@ -46,8 +46,7 @@ MAX_CHUNKS_PER_SECOND = 40
 @router.websocket("/ws")
 async def wakeword_endpoint(
     websocket: WebSocket,
-    token: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    token: Optional[str] = Query(None)
 ):
     # Resolve token from query parameter or authorization header
     if not token:
@@ -66,17 +65,21 @@ async def wakeword_endpoint(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        user = db.query(User).filter(User.id == str(token_sub)).first()
-        if not user or not getattr(user, "is_active", True):
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        # Check token version revocation
-        token_ver = payload.get("ver")
-        if getattr(user, "token_version", None) is not None:
-            if token_ver is None or token_ver != user.token_version:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == str(token_sub)).first()
+            if not user or not getattr(user, "is_active", True):
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
+
+            # Check token version revocation
+            token_ver = payload.get("ver")
+            if getattr(user, "token_version", None) is not None:
+                if token_ver is None or token_ver != user.token_version:
+                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                    return
+        finally:
+            db.close()
     except Exception:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
